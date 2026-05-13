@@ -21,15 +21,29 @@ Quick start:
     # Restore (also useful for verifying the round-trip locally)
     python visual_pack.py unpack -i packed.txt -d restored/
 
-Screenshot tips for maximum density:
-    - Use a monospace font as small as you can still read (8-10pt works well).
+Output format (one line per row, easy to OCR from a screenshot):
+    ===VP1===
+    size=<N> lines=<M> sha256=<full-hash>
+    01|<crc32-hex>|<base64-chunk>
+    02|<crc32-hex>|<base64-chunk>
+    ...
+    ===END===
+
+The per-line CRC32 lets the decoder identify exactly which lines came back
+mangled from OCR, so only those lines need a clearer re-screenshot. The
+header SHA256 verifies the fully-assembled archive end-to-end.
+
+Screenshot tips for OCR reliability:
+    - Use a monospace font large enough to read each character clearly. A
+      ~140-180 column window with readable text beats a tiny-font 300-col
+      window every time. Per-line CRC catches mistakes either way.
     - Fullscreen the terminal (F11 or Cmd-Ctrl-F) then screenshot the window.
-    - 200+ cols x 90+ rows fits ~18 KB of base64 = ~13 KB compressed = ~40-70 KB
-      of source code per screenshot (depending on how compressible it is).
     - If the dump spans multiple screens, scroll and screenshot each one.
-      Line numbers identify each row so chunks reassemble in order regardless
-      of overlap or scroll position.
-    - The header carries a SHA256 of the archive; the decoder verifies it.
+      Line numbers identify each row so chunks reassemble in any order, even
+      with overlap between screenshots.
+    - PNG screenshots only - JPEG compression destroys dense text.
+    - One file at a time helps too (`python visual_pack.py pack ingest.py`)
+      so a single bad screenshot doesn't block other files.
 """
 
 from __future__ import annotations
@@ -42,6 +56,7 @@ import lzma
 import re
 import sys
 import tarfile
+import zlib
 from pathlib import Path
 
 EXCLUDE_DIRS = {
@@ -106,25 +121,37 @@ def make_tarball(files):
     return lzma.compress(buf.getvalue(), preset=9 | lzma.PRESET_EXTREME)
 
 
-def encode_to_text(data, line_width=120):
-    """Render bytes as zero-padded numbered base64 lines."""
+def encode_to_text(data, line_width=110):
+    """Render bytes as numbered base64 lines with per-line CRC32 (hex)."""
     b64 = base64.b64encode(data).decode("ascii")
     digest = hashlib.sha256(data).hexdigest()
     lines = [b64[i:i + line_width] for i in range(0, len(b64), line_width)]
     width = max(2, len(str(len(lines))))
     out = [MAGIC, f"size={len(data)} lines={len(lines)} sha256={digest}"]
     for i, line in enumerate(lines, 1):
-        out.append(f"{i:0{width}d}|{line}")
+        crc = zlib.crc32(line.encode("ascii")) & 0xFFFFFFFF
+        out.append(f"{i:0{width}d}|{crc:08x}|{line}")
     out.append(END_MARKER)
     return "\n".join(out)
 
 
 def decode_from_text(text):
-    """Parse encoded text back to bytes. Tolerant of whitespace and OCR cruft."""
+    """Parse encoded text back to bytes; verify per-line CRC and final SHA256."""
     hm = re.search(r"sha256=([a-f0-9]{64})", text)
     expected = hm.group(1) if hm else None
-    parts = []
+    parts = []          # (line_num, base64_chunk)
+    bad_lines = []      # line numbers that failed CRC
     for raw in text.splitlines():
+        # New format: NN|CRC32|base64
+        m = re.match(r"^\s*(\d+)\s*\|([a-fA-F0-9]{8})\|([A-Za-z0-9+/=]+)\s*$", raw)
+        if m:
+            num, crc_hex, b64 = int(m.group(1)), m.group(2).lower(), m.group(3)
+            actual = f"{zlib.crc32(b64.encode('ascii')) & 0xFFFFFFFF:08x}"
+            if actual != crc_hex:
+                bad_lines.append(num)
+            parts.append((num, b64))
+            continue
+        # Legacy format: NN|base64
         m = re.match(r"^\s*(\d+)\s*\|([A-Za-z0-9+/=]+)\s*$", raw)
         if m:
             parts.append((int(m.group(1)), m.group(2)))
@@ -135,7 +162,13 @@ def decode_from_text(text):
                 parts.append((len(parts) + 1, s))
     if not parts:
         raise ValueError("no encoded data lines found")
+    if bad_lines:
+        print(f"warn: CRC mismatch on lines {sorted(bad_lines)}", file=sys.stderr)
     parts.sort(key=lambda x: x[0])
+    nums = [p[0] for p in parts]
+    missing = sorted(set(range(min(nums), max(nums) + 1)) - set(nums))
+    if missing:
+        print(f"warn: missing lines {missing}", file=sys.stderr)
     b64 = "".join(p[1] for p in parts)
     b64 += "=" * (-len(b64) % 4)
     data = base64.b64decode(b64)
@@ -209,8 +242,8 @@ def main():
     p = sub.add_parser("pack", help="compress files into screenshot-friendly text")
     p.add_argument("paths", nargs="+", help="files or directories to pack")
     p.add_argument("-o", "--output", help="write to file (default: stdout)")
-    p.add_argument("-w", "--line-width", type=int, default=120,
-                   help="base64 chars per line (default: 120)")
+    p.add_argument("-w", "--line-width", type=int, default=110,
+                   help="base64 chars per line (default: 110)")
     p.add_argument("--max-file", type=int, default=2_000_000,
                    help="skip files larger than this (default: 2 MB)")
     p.set_defaults(func=cmd_pack)
