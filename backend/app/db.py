@@ -91,9 +91,32 @@ async def discover_embedding_dim() -> int:
 
 
 async def ensure_contextual_embedding_column() -> None:
-    """Add a vector column to chunk_context with the live embedding dim."""
-    dim = await discover_embedding_dim()
+    """Add a vector column to chunk_context with the live embedding dim.
+
+    Runs inside SET ROLE <app_owner_role> when configured so the ALTER
+    works even when chunk_context is owned by the app role rather than
+    the connecting user. The chunk_context table itself only exists
+    after migration 001 has run, so if the table is missing we just
+    return — the migration step is the right place to surface that.
+    """
+    schema = settings.pg_schema
+    role = settings.app_owner_role
     async with acquire() as conn:
+        # Make sure chunk_context exists before doing anything else.
+        has_table = await conn.fetchval(
+            """
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = $1 AND table_name = 'chunk_context'
+            """,
+            schema,
+        )
+        if not has_table:
+            logger.warning(
+                "skip ensure_contextual_embedding_column: %s.chunk_context not present yet",
+                schema,
+            )
+            return
+        dim = await discover_embedding_dim()
         exists = await conn.fetchval(
             """
             SELECT 1
@@ -102,20 +125,34 @@ async def ensure_contextual_embedding_column() -> None:
               AND table_name = 'chunk_context'
               AND column_name = 'context_embedding'
             """,
-            settings.pg_schema,
+            schema,
         )
-        if not exists:
+        if exists:
+            return
+        role_set = False
+        if role:
+            try:
+                await conn.execute(f'SET ROLE "{role}"')
+                role_set = True
+            except Exception as exc:
+                logger.warning("SET ROLE %s failed for context column: %s", role, exc)
+        try:
             await conn.execute(
-                f'ALTER TABLE "{settings.pg_schema}".chunk_context '
+                f'ALTER TABLE "{schema}".chunk_context '
                 f"ADD COLUMN context_embedding vector({dim})"
             )
-            # HNSW index on the contextual embedding too
             await conn.execute(
                 f'CREATE INDEX IF NOT EXISTS idx_chunk_context_embedding_hnsw '
-                f'ON "{settings.pg_schema}".chunk_context '
+                f'ON "{schema}".chunk_context '
                 f"USING hnsw (context_embedding vector_cosine_ops)"
             )
             logger.info("Added context_embedding vector(%d) + HNSW index", dim)
+        finally:
+            if role_set:
+                try:
+                    await conn.execute("RESET ROLE")
+                except Exception:
+                    pass
 
 
 async def ensure_schema_and_tables() -> dict:
@@ -309,10 +346,17 @@ async def run_migrations(sql_path: str) -> None:
     schema name. At runtime we substitute it with the configured
     `settings.pg_schema` so a single set of migration files works against
     any schema (e.g. `vector_ng12499`).
+
+    The migration runs with `SET ROLE <app_owner_role>` first so that
+    `ALTER TABLE` statements can modify tables that aren't owned by the
+    connecting user (very common in shared/managed Postgres where the
+    table was created by a service account). We RESET ROLE at the end
+    so the connection is clean when it returns to the pool.
     """
     with open(sql_path, "r", encoding="utf-8") as f:
         sql = f.read()
     schema = settings.pg_schema
+    role = settings.app_owner_role
     if schema != "vector":
         # Replace standalone `vector.` and `'vector'` literals. The
         # migrations only ever use these to refer to the target schema —
@@ -327,8 +371,29 @@ async def run_migrations(sql_path: str) -> None:
         sql = re.sub(r"(SET\s+search_path\s+TO\s+)vector\b",
                      rf'\1"{schema}"', sql, flags=re.IGNORECASE)
     async with acquire() as conn:
-        await conn.execute(sql)
-    logger.info("Applied migration: %s (schema=%s)", sql_path, schema)
+        # SET ROLE up-front — required when the existing table is owned
+        # by the app_owner_role rather than the connecting user, otherwise
+        # ALTER TABLE inside the migration fails with InsufficientPrivilege.
+        role_set = False
+        if role:
+            try:
+                await conn.execute(f'SET ROLE "{role}"')
+                role_set = True
+                logger.info("SET ROLE %s for migration %s", role, sql_path)
+            except Exception as exc:
+                logger.warning(
+                    "SET ROLE %s failed before migration %s (continuing as connecting user): %s",
+                    role, sql_path, exc,
+                )
+        try:
+            await conn.execute(sql)
+        finally:
+            if role_set:
+                try:
+                    await conn.execute("RESET ROLE")
+                except Exception:
+                    pass
+    logger.info("Applied migration: %s (schema=%s, role=%s)", sql_path, schema, role or "(none)")
 
 
 async def healthcheck() -> dict[str, Any]:
