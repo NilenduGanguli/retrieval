@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 
 _pool: asyncpg.Pool | None = None
 _embedding_dim: int | None = None
+# Cached schema where pgvector lives (e.g. "public" or "extensions").
+# Discovered once at bootstrap and reused so every pool connection's
+# search_path includes it — otherwise `vector(D)` references in DDL
+# fail with "type 'vector' does not exist".
+_pgvector_schema: str | None = None
 
 
 # pgvector text format: "[0.1,0.2,...]"
@@ -21,12 +26,42 @@ def vec_to_pg(vec: list[float]) -> str:
     return "[" + ",".join(f"{x:.7g}" for x in vec) + "]"
 
 
+async def _discover_pgvector_schema(conn: asyncpg.Connection) -> str | None:
+    """Return the schema where pgvector's `vector` type is registered."""
+    row = await conn.fetchrow(
+        "SELECT nspname FROM pg_type t "
+        "JOIN pg_namespace n ON t.typnamespace = n.oid "
+        "WHERE t.typname = 'vector' LIMIT 1"
+    )
+    return row["nspname"] if row else None
+
+
 async def _init_conn(conn: asyncpg.Connection) -> None:
-    """Per-connection initialisation: jsonb codec + search_path."""
+    """Per-connection initialisation: jsonb codec + search_path.
+
+    The search_path always includes the configured target schema, the
+    pgvector schema (discovered once at bootstrap), and public. Without
+    the pgvector schema, any `vector(D)` reference in DDL fails on
+    connections that were acquired fresh from the pool.
+    """
     await conn.set_type_codec(
         "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
     )
-    await conn.execute(f'SET search_path TO "{settings.pg_schema}", public')
+    # If we haven't discovered the pgvector schema yet (very first pool
+    # init before ensure_schema_and_tables runs), look it up now so the
+    # bootstrap conn already has it.
+    global _pgvector_schema
+    if _pgvector_schema is None:
+        try:
+            _pgvector_schema = await _discover_pgvector_schema(conn)
+        except Exception:
+            _pgvector_schema = None
+
+    parts: list[str] = [f'"{settings.pg_schema}"']
+    if _pgvector_schema and _pgvector_schema not in ("public", settings.pg_schema):
+        parts.append(f'"{_pgvector_schema}"')
+    parts.append("public")
+    await conn.execute("SET search_path TO " + ", ".join(parts))
 
 
 async def init_pool() -> asyncpg.Pool:
@@ -129,6 +164,22 @@ async def ensure_contextual_embedding_column() -> None:
         )
         if exists:
             return
+        # The connection acquired from the pool may have been created
+        # before _pgvector_schema was discovered. Force the search_path
+        # locally so `vector(D)` resolves.
+        global _pgvector_schema
+        if _pgvector_schema is None:
+            try:
+                _pgvector_schema = await _discover_pgvector_schema(conn)
+            except Exception:
+                _pgvector_schema = None
+        if _pgvector_schema and _pgvector_schema not in ("public", schema):
+            try:
+                await conn.execute(
+                    f'SET search_path TO "{schema}", "{_pgvector_schema}", public, pg_catalog'
+                )
+            except Exception as exc:
+                logger.warning("failed to extend search_path with pgvector schema: %s", exc)
         role_set = False
         if role:
             try:
@@ -219,8 +270,14 @@ async def ensure_schema_and_tables() -> dict:
         if ext_row:
             ext_schema = ext_row["nspname"]
             summary["pgvector_schema"] = ext_schema
-            # Prepend the pgvector schema to search_path for this connection
-            # so subsequent DDL (`vector(D)`) resolves.
+            # Cache module-globally so every pool connection's _init_conn
+            # also gets this schema on its search_path. Otherwise a fresh
+            # conn acquired later (e.g. during ensure_contextual_embedding_column)
+            # won't be able to resolve `vector(D)`.
+            global _pgvector_schema
+            _pgvector_schema = ext_schema
+            # Prepend the pgvector schema to search_path for THIS connection
+            # so the rest of the bootstrap's DDL resolves immediately.
             try:
                 await conn.execute(
                     f'SET search_path TO "{schema}", "{ext_schema}", public, pg_catalog'
