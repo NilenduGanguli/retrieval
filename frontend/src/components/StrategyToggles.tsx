@@ -51,10 +51,10 @@ export default function StrategyToggles({ strategy, onChange, defaults }: Props)
             <div className="text-xs font-medium flex items-center gap-1">
               {f.label}
               <span className="group relative">
-                <Info className="w-3 h-3 text-muted" />
+                <Info className="w-3 h-3 text-citi-blue" />
                 <span className="absolute left-1/2 -translate-x-1/2 -top-1 -translate-y-full
                                  hidden group-hover:block z-10 whitespace-nowrap text-[10px]
-                                 bg-bg-card border border-line rounded px-2 py-1 text-zinc-300">
+                                 bg-bg-card border border-line rounded px-2 py-1 text-ink">
                   {f.hint}
                 </span>
               </span>
@@ -65,7 +65,7 @@ export default function StrategyToggles({ strategy, onChange, defaults }: Props)
             onCheckedChange={v => update(f.key, v)}
             className={cn(
               'w-9 h-5 rounded-full relative transition',
-              valOf(f.key) ? 'bg-accent' : 'bg-zinc-700',
+              valOf(f.key) ? 'bg-accent' : 'bg-slate-300',
             )}
           >
             <Switch.Thumb
@@ -79,9 +79,9 @@ export default function StrategyToggles({ strategy, onChange, defaults }: Props)
       ))}
 
       <div className="pt-2">
-        <label className="text-xs text-muted flex items-center justify-between mb-1">
+        <label className="text-xs text-citi-blue flex items-center justify-between mb-1">
           <span>top-K final</span>
-          <span className="text-zinc-300">{strategy.top_k ?? defaults?.top_k ?? 8}</span>
+          <span className="text-ink">{strategy.top_k ?? defaults?.top_k ?? 8}</span>
         </label>
         <input
           type="range"

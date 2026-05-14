@@ -1,11 +1,12 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { useEffect, useState } from 'react'
-import { Activity, BarChart3, Database, FlaskConical, MessageSquare, Sparkles } from 'lucide-react'
+import { Activity, BarChart3, Database, FlaskConical, MessageSquare } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { BackendConfig, HealthInfo } from '@/types'
 
+import CitiLogo from '@/components/CitiLogo'
 import IngestionTab from '@/components/IngestionTab'
 import RetrievalTab from '@/components/RetrievalTab'
 import AnalyticsTab from '@/components/AnalyticsTab'
@@ -45,24 +46,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="border-b border-line/80 backdrop-blur sticky top-0 z-20 bg-bg/70">
+      {/* Header — white surface with strong Citi-blue accent band */}
+      <header className="border-b border-line bg-white sticky top-0 z-20 shadow-cardLg">
         <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-6">
+          <div className="flex items-center gap-3 pr-4 border-r-2 border-line">
+            <CitiLogo size={32} />
+          </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Sparkles className="w-5 h-5 text-accent" />
-              <span className="absolute -inset-1 rounded-full bg-accent/20 blur-md" />
-            </div>
-            <span className="font-semibold tracking-tight text-zinc-100">
+            <span className="font-semibold tracking-tight text-citi-blue text-base">
               RAG <span className="heading-glow">Studio</span>
             </span>
-            <span className="ml-2 text-xs text-muted hidden sm:inline">
+            <span className="ml-2 text-xs text-citi-blue hidden sm:inline">
               hybrid · contextual · listwise rerank · CRAG
             </span>
           </div>
 
           <Tabs.Root value={tab} onValueChange={setTab} className="flex-1">
-            <Tabs.List className="inline-flex gap-1 p-1 rounded-xl bg-bg-soft border border-line">
+            <Tabs.List className="inline-flex gap-1 p-1 rounded-xl bg-slate-100 border border-line">
               {TABS.map(t => {
                 const Icon = t.icon
                 return (
@@ -70,9 +70,9 @@ export default function App() {
                     key={t.value}
                     value={t.value}
                     className={cn(
-                      'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition',
-                      'text-zinc-400 hover:text-zinc-100',
-                      'data-[state=active]:bg-bg-card data-[state=active]:text-zinc-100 data-[state=active]:shadow-glow',
+                      'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition',
+                      'text-ink hover:text-citi-blue hover:bg-white',
+                      'data-[state=active]:bg-accent data-[state=active]:text-white data-[state=active]:shadow-glow',
                     )}
                   >
                     <Icon className="w-4 h-4" />
@@ -83,10 +83,12 @@ export default function App() {
             </Tabs.List>
           </Tabs.Root>
 
-          <div className="hidden md:flex items-center gap-3 text-xs text-muted">
+          <div className="hidden md:flex items-center gap-3 text-xs">
             <HealthBadge health={health} />
           </div>
         </div>
+        {/* Heavy Citi-blue accent band beneath the bar */}
+        <div className="h-1 bg-gradient-to-r from-citi-blue via-accent to-accent-soft" />
       </header>
 
       <main className="flex-1 max-w-[1600px] mx-auto w-full px-6 py-6">
@@ -106,13 +108,16 @@ export default function App() {
         </Tabs.Root>
       </main>
 
-      <footer className="border-t border-line/60 text-[11px] text-muted px-6 py-2 flex items-center justify-between max-w-[1600px] mx-auto w-full">
+      <footer className="border-t border-line text-[11px] text-ink px-6 py-2 flex items-center justify-between max-w-[1600px] mx-auto w-full bg-white">
         <span>
           {config ? (
             <>
-              <span className="text-zinc-400">emb:</span> {config.embedding_model} ·{' '}
-              <span className="text-zinc-400">gen:</span> {config.final_gen_model} ·{' '}
-              <span className="text-zinc-400">rerank:</span> {config.rerank_model}
+              <span className="text-citi-blue font-semibold">emb:</span>{' '}
+              <span className="text-ink">{config.embedding_model}</span> ·{' '}
+              <span className="text-citi-blue font-semibold">gen:</span>{' '}
+              <span className="text-ink">{config.final_gen_model}</span> ·{' '}
+              <span className="text-citi-blue font-semibold">rerank:</span>{' '}
+              <span className="text-ink">{config.rerank_model}</span>
             </>
           ) : (
             'loading…'

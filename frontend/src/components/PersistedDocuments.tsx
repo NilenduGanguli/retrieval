@@ -37,12 +37,12 @@ export default function PersistedDocuments({ hits, s3Enabled }: Props) {
 
   if (docs.length === 0) {
     return (
-      <div className="card-soft p-3 text-[11px] space-y-1 text-muted">
+      <div className="card-soft p-3 text-[11px] space-y-1 text-citi-blue">
         <div className="flex items-center gap-1.5">
           <HardDrive className="w-3 h-3" />
           <span>persisted documents</span>
         </div>
-        <div className="text-muted/80 italic">
+        <div className="text-citi-blue/80 italic">
           Run a retrieval to see the source documents here.
         </div>
       </div>
@@ -52,7 +52,7 @@ export default function PersistedDocuments({ hits, s3Enabled }: Props) {
   return (
     <>
       <div className="card-soft p-3 text-[11px] space-y-2">
-        <div className="flex items-center gap-1.5 text-muted">
+        <div className="flex items-center gap-1.5 text-citi-blue">
           <HardDrive className="w-3 h-3" />
           <span>persisted documents</span>
           <span className="chip ml-auto">{docs.length}</span>
@@ -60,11 +60,11 @@ export default function PersistedDocuments({ hits, s3Enabled }: Props) {
         <ul className="space-y-1.5">
           {docs.map((d) => (
             <li key={d.name} className="rounded-md border border-line/60 bg-bg-soft/60 px-2 py-1.5">
-              <div className="flex items-center gap-1.5 text-zinc-200">
+              <div className="flex items-center gap-1.5 text-ink">
                 <FileText className="w-3 h-3 text-accent shrink-0" />
                 <span className="truncate text-[12px]" title={d.name}>{d.name}</span>
               </div>
-              <div className="flex items-center gap-2 mt-1 text-muted/90 text-[10px]">
+              <div className="flex items-center gap-2 mt-1 text-citi-blue/90 text-[10px]">
                 <span>{d.chunks} chunk{d.chunks > 1 ? 's' : ''}</span>
                 {d.pages.size > 0 && <span>p. {[...d.pages].sort((a, b) => a - b).join(', ').slice(0, 30)}</span>}
               </div>
@@ -95,8 +95,8 @@ export default function PersistedDocuments({ hits, s3Enabled }: Props) {
           ))}
         </ul>
         {!s3Enabled && (
-          <div className="text-[10px] text-muted/80 italic pt-1 border-t border-line/40">
-            S3 disabled — set <code className="text-accent-soft">S3_ENABLED=true</code> in .env to enable view/download.
+          <div className="text-[10px] text-citi-blue/80 italic pt-1 border-t border-line/40">
+            S3 disabled — set <code className="text-accent-dark">S3_ENABLED=true</code> in .env to enable view/download.
           </div>
         )}
       </div>
@@ -137,7 +137,7 @@ function DocumentPreviewModal({ name, onClose }: { name: string; onClose: () => 
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded hover:bg-bg-soft text-muted hover:text-zinc-100 transition"
+              className="p-1 rounded hover:bg-bg-soft text-citi-blue hover:text-ink transition"
               aria-label="Close preview"
             >
               <X className="w-4 h-4" />
@@ -147,7 +147,7 @@ function DocumentPreviewModal({ name, onClose }: { name: string; onClose: () => 
         <iframe
           src={src}
           title={`Preview of ${name}`}
-          className="flex-1 w-full bg-zinc-900"
+          className="flex-1 w-full bg-slate-100"
         />
       </div>
     </div>

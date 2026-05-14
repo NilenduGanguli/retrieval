@@ -37,14 +37,14 @@ export default function LatencyBar({ latency }: { latency: LatencyMs }) {
           )
         })}
       </div>
-      <div className="flex flex-wrap gap-2 text-[10px] text-muted">
+      <div className="flex flex-wrap gap-2 text-[10px] text-citi-blue">
         {segments
           .filter(s => s.ms > 0)
           .map(seg => (
             <span key={seg.key as string} className="inline-flex items-center gap-1.5">
               <span className={cn('w-2 h-2 rounded-sm', seg.color)} />
               <span>{seg.label}</span>
-              <span className="text-zinc-300">{seg.ms.toFixed(0)} ms</span>
+              <span className="text-ink">{seg.ms.toFixed(0)} ms</span>
             </span>
           ))}
       </div>

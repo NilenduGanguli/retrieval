@@ -113,7 +113,7 @@ export default function RetrievalTab({ config }: Props) {
             <Wand2 className="w-4 h-4 text-accent" />
             <h2 className="font-medium text-sm">Strategy</h2>
           </div>
-          <p className="text-xs text-muted leading-relaxed">
+          <p className="text-xs text-citi-blue leading-relaxed">
             Toggle each stage to demo its impact live. Defaults reflect server config.
           </p>
           <StrategyToggles
@@ -124,15 +124,15 @@ export default function RetrievalTab({ config }: Props) {
         </div>
 
         {config && (
-          <div className="card-soft p-3 text-[11px] space-y-1 text-muted">
-            <div className="flex items-center gap-1.5">
+          <div className="card-soft p-3 text-[11px] space-y-1 text-ink">
+            <div className="flex items-center gap-1.5 text-citi-blue font-semibold uppercase tracking-wider mb-1">
               <Cpu className="w-3 h-3" />
               <span>models</span>
             </div>
-            <div><span className="text-zinc-400">emb:</span> {config.embedding_model}</div>
-            <div><span className="text-zinc-400">gen:</span> {config.final_gen_model}</div>
-            <div><span className="text-zinc-400">rerank:</span> {config.rerank_model}</div>
-            <div><span className="text-zinc-400">fast:</span> {config.fast_model}</div>
+            <div><span className="text-citi-blue font-semibold">emb:</span> {config.embedding_model}</div>
+            <div><span className="text-citi-blue font-semibold">gen:</span> {config.final_gen_model}</div>
+            <div><span className="text-citi-blue font-semibold">rerank:</span> {config.rerank_model}</div>
+            <div><span className="text-citi-blue font-semibold">fast:</span> {config.fast_model}</div>
           </div>
         )}
 
@@ -161,9 +161,9 @@ export default function RetrievalTab({ config }: Props) {
               }}
               placeholder="What does the document say about... (⌘/Ctrl+Enter to send)"
               rows={3}
-              className="flex-1 bg-bg-soft border border-line rounded-lg p-3 text-sm
-                         placeholder:text-muted focus:outline-none focus:border-accent/60
-                         resize-none"
+              className="flex-1 bg-white border border-line rounded-lg p-3 text-sm text-ink
+                         placeholder:text-citi-blue/60 focus:outline-none focus:border-accent
+                         focus:ring-2 focus:ring-accent/20 resize-none"
             />
             <button
               onClick={send}
@@ -180,7 +180,7 @@ export default function RetrievalTab({ config }: Props) {
           </div>
           {meta && meta.rewritten_queries?.length > 1 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
-              <span className="text-[11px] text-muted">rewrites:</span>
+              <span className="text-[11px] text-citi-blue">rewrites:</span>
               {meta.rewritten_queries.slice(1).map((q, i) => (
                 <span key={i} className="chip-accent">{q}</span>
               ))}
@@ -196,7 +196,7 @@ export default function RetrievalTab({ config }: Props) {
         {/* Answer card */}
         <div className="answer-card">
           {phase === 'idle' && (
-            <div className="text-muted text-sm flex flex-col items-center justify-center h-full py-12">
+            <div className="text-citi-blue text-sm flex flex-col items-center justify-center h-full py-12">
               <Layers className="w-10 h-10 mb-2 opacity-30" />
               <span>Ask a question to see the pipeline work.</span>
             </div>
@@ -223,7 +223,7 @@ export default function RetrievalTab({ config }: Props) {
           )}
 
           {phase === 'error' && (
-            <div className="text-red-400 text-sm">
+            <div className="text-red-700 text-sm">
               <p className="font-medium">Pipeline error</p>
               <pre className="mt-2 text-xs whitespace-pre-wrap">{errMsg}</pre>
             </div>
@@ -238,7 +238,7 @@ export default function RetrievalTab({ config }: Props) {
                 <Clock className="w-4 h-4 text-accent" />
                 <span className="font-medium">Latency breakdown</span>
               </div>
-              <span className="text-xs text-muted">
+              <span className="text-xs text-citi-blue">
                 total {totalMs?.toFixed(0) ?? '—'} ms
                 {genMs != null && <> · generate {genMs.toFixed(0)} ms</>}
               </span>
@@ -256,7 +256,7 @@ export default function RetrievalTab({ config }: Props) {
                 <Coins className="w-4 h-4 text-accent" />
                 <span className="font-medium">Token breakdown</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted">
+              <div className="flex items-center gap-2 text-xs text-citi-blue">
                 {tokens
                   ? <TokenBadge usage={tokens} variant="accent" label="total tokens" />
                   : <span>collecting…</span>}
@@ -280,7 +280,7 @@ export default function RetrievalTab({ config }: Props) {
           {meta?.hits.map((h) => (
             <SourceCard key={h.chunk_id} hit={h} highlighted={citations.some(c => c.chunk_id === h.chunk_id)} />
           ))}
-          {!meta && <div className="text-xs text-muted px-2 py-6 text-center">No retrieval yet.</div>}
+          {!meta && <div className="text-xs text-citi-blue px-2 py-6 text-center">No retrieval yet.</div>}
         </div>
       </aside>
     </div>
@@ -290,7 +290,7 @@ export default function RetrievalTab({ config }: Props) {
 function PipelineProgress({ message }: { message: string }) {
   const stages = ['rewrite', 'hyde', 'embed', 'dense', 'sparse', 'fuse', 'rerank', 'mmr', 'crag']
   return (
-    <div className="flex flex-col items-center justify-center py-12 gap-4 text-sm text-muted">
+    <div className="flex flex-col items-center justify-center py-12 gap-4 text-sm text-citi-blue">
       <div className="flex items-center gap-1.5">
         {stages.map((s, i) => (
           <div
@@ -364,23 +364,23 @@ function AnswerMarkdown({
     <ReactMarkdown
       components={{
         h1: ({ children }) => (
-          <h1 className="text-lg font-semibold text-zinc-100 mt-5 mb-2 tracking-tight">
+          <h1 className="text-lg font-semibold text-ink mt-5 mb-2 tracking-tight">
             {withCitations(children, hits)}
           </h1>
         ),
         h2: ({ children }) => (
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-accent-soft
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-accent-dark
                          mt-6 mb-2 pb-1 border-b border-accent/20">
             {withCitations(children, hits)}
           </h2>
         ),
         h3: ({ children }) => (
-          <h3 className="text-sm font-semibold text-zinc-200 mt-4 mb-1.5">
+          <h3 className="text-sm font-semibold text-ink mt-4 mb-1.5">
             {withCitations(children, hits)}
           </h3>
         ),
         p: ({ children }) => (
-          <p className="text-sm leading-relaxed text-zinc-200 my-2">
+          <p className="text-sm leading-relaxed text-ink my-2">
             {withCitations(children, hits)}
           </p>
         ),
@@ -395,25 +395,25 @@ function AnswerMarkdown({
           </ol>
         ),
         li: ({ children }) => (
-          <li className="text-sm leading-relaxed text-zinc-200 marker:text-muted">
+          <li className="text-sm leading-relaxed text-ink marker:text-citi-blue">
             {withCitations(children, hits)}
           </li>
         ),
         strong: ({ children }) => (
-          <strong className="text-zinc-50 font-semibold">{children}</strong>
+          <strong className="text-ink font-semibold">{children}</strong>
         ),
         em: ({ children }) => (
-          <em className="text-zinc-300">{children}</em>
+          <em className="text-ink">{children}</em>
         ),
         code: ({ children }) => (
           <code className="bg-bg-soft border border-line rounded px-1 py-0.5 text-[12px]
-                           font-mono text-accent-soft">
+                           font-mono text-accent-dark">
             {children}
           </code>
         ),
         a: ({ href, children }) => (
           <a href={href} target="_blank" rel="noreferrer"
-             className="text-accent-soft hover:underline">{children}</a>
+             className="text-accent-dark hover:underline">{children}</a>
         ),
         hr: () => <hr className="my-4 border-line" />,
       }}
@@ -426,10 +426,10 @@ function AnswerMarkdown({
 function CragBadge({ confidence }: { confidence: number }) {
   const tone =
     confidence >= 0.6
-      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+      ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700'
       : confidence >= 0.2
-      ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-      : 'border-red-500/40 bg-red-500/10 text-red-300'
+      ? 'border-amber-500/40 bg-amber-500/10 text-amber-700'
+      : 'border-red-500/40 bg-red-500/10 text-red-700'
   return (
     <div className={cn('mt-4 inline-flex items-center gap-2 text-xs px-2 py-1 rounded-md border', tone)}>
       <Shield className="w-3 h-3" />

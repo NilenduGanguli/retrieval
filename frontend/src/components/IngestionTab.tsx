@@ -224,8 +224,8 @@ export default function IngestionTab({ health, onChange }: Props) {
             <FileUp className="w-4 h-4 text-accent" />
             <h2 className="font-medium text-sm">Ingest PDF (WEGA chunker)</h2>
           </div>
-          <p className="text-xs text-muted mb-3">
-            Uploads the PDF to the server and runs your existing <code className="text-accent-soft">ingest.py</code>
+          <p className="text-xs text-citi-blue mb-3">
+            Uploads the PDF to the server and runs your existing <code className="text-accent-dark">ingest.py</code>
             {' '}in-process. Stream of WEGA chunking → embedding → pgvector upsert.
           </p>
           <div className="flex items-center gap-2">
@@ -234,9 +234,9 @@ export default function IngestionTab({ health, onChange }: Props) {
               type="file"
               accept="application/pdf"
               multiple
-              className="block text-xs text-zinc-300 file:mr-3 file:py-1.5 file:px-3
+              className="block text-xs text-ink file:mr-3 file:py-1.5 file:px-3
                          file:rounded-md file:border file:border-line
-                         file:bg-bg-soft file:text-zinc-100 hover:file:bg-bg-card"
+                         file:bg-bg-soft file:text-ink hover:file:bg-bg-card"
               onChange={e => {
                 if (e.target.files && e.target.files.length) {
                   enqueueFiles(e.target.files)
@@ -250,7 +250,7 @@ export default function IngestionTab({ health, onChange }: Props) {
               </div>
             )}
             {uploadProgress != null && (
-              <span className="text-xs text-muted tabular-nums">{((uploadProgress ?? 0) * 100).toFixed(0)}%</span>
+              <span className="text-xs text-citi-blue tabular-nums">{((uploadProgress ?? 0) * 100).toFixed(0)}%</span>
             )}
           </div>
           {(currentFile || queue.length > 0) && (
@@ -272,7 +272,7 @@ export default function IngestionTab({ health, onChange }: Props) {
           )}
           {uploadTokens && (uploadTokens.total ?? 0) > 0 && (
             <div className="mt-3 card-soft p-2 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 text-muted">
+              <div className="flex items-center gap-2 text-citi-blue">
                 <Coins className="w-3.5 h-3.5 text-accent" />
                 <span>Tokens consumed by this ingestion</span>
               </div>
@@ -291,13 +291,13 @@ export default function IngestionTab({ health, onChange }: Props) {
             <h2 className="font-medium text-sm">Generate Contextual Retrieval Prefixes</h2>
             <span className="chip-accent ml-2">+49% recall lift</span>
           </div>
-          <p className="text-xs text-muted leading-relaxed mb-3">
+          <p className="text-xs text-citi-blue leading-relaxed mb-3">
             For each chunk, the LLM writes a ~50-100 token prefix that situates it inside the document, then we embed
             (prefix + chunk) and store the contextual embedding. This is the Anthropic Sept-2024 recipe.
           </p>
           <div className="grid grid-cols-3 gap-2 text-xs mb-3">
             <label className="col-span-2">
-              <span className="block text-muted mb-1">Document (blank = all docs)</span>
+              <span className="block text-citi-blue mb-1">Document (blank = all docs)</span>
               <select
                 value={ctxDocument}
                 onChange={e => setCtxDocument(e.target.value)}
@@ -312,7 +312,7 @@ export default function IngestionTab({ health, onChange }: Props) {
               </select>
             </label>
             <label>
-              <span className="block text-muted mb-1">Batch size</span>
+              <span className="block text-citi-blue mb-1">Batch size</span>
               <input
                 type="number"
                 value={ctxLimit}
@@ -336,12 +336,12 @@ export default function IngestionTab({ health, onChange }: Props) {
               </div>
             )}
             {ctxProgress != null && (
-              <span className="text-xs text-muted w-12 text-right">{(ctxProgress * 100).toFixed(0)}%</span>
+              <span className="text-xs text-citi-blue w-12 text-right">{(ctxProgress * 100).toFixed(0)}%</span>
             )}
           </div>
           {ctxTokens && (ctxTokens.total ?? 0) > 0 && (
             <div className="mt-3 card-soft p-2 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 text-muted">
+              <div className="flex items-center gap-2 text-citi-blue">
                 <Coins className="w-3.5 h-3.5 text-accent" />
                 <span>Tokens consumed by context-prefix generation</span>
               </div>
@@ -358,7 +358,7 @@ export default function IngestionTab({ health, onChange }: Props) {
           <Database className="w-4 h-4 text-accent" />
           <h2 className="font-medium text-sm">Document explorer</h2>
           <button onClick={loadDocs} className="ml-auto p-1.5 rounded hover:bg-bg-soft transition">
-            <RefreshCw className={cn('w-3.5 h-3.5 text-muted', refreshing && 'animate-spin')} />
+            <RefreshCw className={cn('w-3.5 h-3.5 text-citi-blue', refreshing && 'animate-spin')} />
           </button>
         </div>
         <div className="space-y-2 max-h-[calc(100vh-180px)] overflow-y-auto pr-1">
@@ -371,7 +371,7 @@ export default function IngestionTab({ health, onChange }: Props) {
             />
           ))}
           {(docs || []).length === 0 && (
-            <div className="text-xs text-muted px-2 py-4">No documents indexed yet.</div>
+            <div className="text-xs text-citi-blue px-2 py-4">No documents indexed yet.</div>
           )}
         </div>
       </aside>
@@ -412,10 +412,10 @@ function IngestStages({
             key={s}
             className={cn(
               'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border transition',
-              status === 'done' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-              status === 'running' && 'border-accent/60 bg-accent/15 text-accent-soft shadow-glow',
-              status === 'idle' && 'border-line bg-bg-soft/40 text-muted',
-              status === 'error' && 'border-red-500/40 bg-red-500/10 text-red-300',
+              status === 'done' && 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700',
+              status === 'running' && 'border-accent/60 bg-accent/15 text-accent-dark shadow-glow',
+              status === 'idle' && 'border-line bg-bg-soft/40 text-citi-blue',
+              status === 'error' && 'border-red-500/40 bg-red-500/10 text-red-700',
             )}
           >
             {labels[s]}
@@ -434,7 +434,7 @@ function IngestStages({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="card p-3">
-      <div className="text-[10px] uppercase text-muted">{label}</div>
+      <div className="text-[10px] uppercase text-citi-blue">{label}</div>
       <div className="text-lg font-semibold mt-0.5">{value}</div>
     </div>
   )
@@ -451,7 +451,7 @@ function DocCard({
   return (
     <div className="card-soft p-3 group">
       <div className="flex items-start justify-between gap-2 mb-1">
-        <div className="text-sm font-medium text-zinc-100 truncate min-w-0 flex-1">{doc.document_name}</div>
+        <div className="text-sm font-medium text-ink truncate min-w-0 flex-1">{doc.document_name}</div>
         <span className="chip text-[10px] shrink-0">
           <Layers3 className="w-3 h-3" />
           {doc.chunk_count}
@@ -464,12 +464,12 @@ function DocCard({
           }}
           disabled={busy}
           title="Soft delete (sets deleted_at, removes from S3)"
-          className="opacity-0 group-hover:opacity-100 transition text-muted hover:text-red-400 disabled:opacity-30 shrink-0"
+          className="opacity-0 group-hover:opacity-100 transition text-citi-blue hover:text-red-700 disabled:opacity-30 shrink-0"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="flex items-center gap-2 text-[11px] text-muted mb-2">
+      <div className="flex items-center gap-2 text-[11px] text-citi-blue mb-2">
         {doc.first_page != null && doc.last_page != null && (
           <span>pp. {doc.first_page}-{doc.last_page}</span>
         )}
@@ -480,7 +480,7 @@ function DocCard({
         <div className="flex-1 h-1.5 rounded-full bg-bg-soft overflow-hidden">
           <div className="h-full bg-emerald-500/70 transition-all" style={{ width: `${(cov * 100).toFixed(0)}%` }} />
         </div>
-        <span className="text-[10px] text-muted w-10 text-right">
+        <span className="text-[10px] text-citi-blue w-10 text-right">
           {(cov * 100).toFixed(0)}%
         </span>
       </div>
@@ -497,10 +497,10 @@ function LogPanel({ lines }: { lines: LogLine[] }) {
           key={i}
           className={cn(
             'whitespace-pre-wrap',
-            l.type === 'error' && 'text-red-400',
-            l.type === 'done' && 'text-emerald-300',
-            l.type === 'context' && 'text-accent-soft',
-            l.type === 'info' && 'text-zinc-400',
+            l.type === 'error' && 'text-red-700',
+            l.type === 'done' && 'text-emerald-700',
+            l.type === 'context' && 'text-accent-dark',
+            l.type === 'info' && 'text-citi-blue',
           )}
         >
           {l.text}

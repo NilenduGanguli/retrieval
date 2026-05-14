@@ -37,9 +37,9 @@ export default function TokenBadge({
     size === 'md' ? 'text-xs px-2 py-1' :
     'text-[11px] px-2 py-0.5'
   const variantCls =
-    variant === 'accent' ? 'bg-accent/15 text-accent-soft border-accent/40' :
-    variant === 'plain'  ? 'bg-transparent text-zinc-300 border-line' :
-                           'bg-bg-soft/50 text-zinc-300 border-line'
+    variant === 'accent' ? 'bg-accent/15 text-accent-dark border-accent/40' :
+    variant === 'plain'  ? 'bg-transparent text-ink border-line' :
+                           'bg-bg-soft/50 text-ink border-line'
   return (
     <span
       title={`${label}: ${fmt(total)}  (prompt ${fmt(prompt)} + completion ${fmt(completion)})`}
@@ -49,8 +49,8 @@ export default function TokenBadge({
       )}
     >
       <Coins className="w-3 h-3 opacity-80" />
-      <span className="text-zinc-100 font-medium">{fmt(total)}</span>
-      <span className="text-muted text-[10px]">
+      <span className="text-ink font-medium">{fmt(total)}</span>
+      <span className="text-citi-blue text-[10px]">
         {fmt(prompt)} in / {fmt(completion)} out
       </span>
     </span>

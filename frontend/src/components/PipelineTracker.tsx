@@ -54,20 +54,20 @@ export default function PipelineTracker({ stages }: { stages: StagesMap }) {
               className={cn(
                 'inline-flex flex-col items-stretch px-2 py-1 rounded-md border text-[11px] transition gap-0.5',
                 st.status === 'idle' &&
-                  'border-line bg-bg-soft/40 text-muted',
+                  'border-line bg-bg-soft/40 text-citi-blue',
                 st.status === 'running' &&
-                  'border-accent/60 bg-accent/15 text-accent-soft shadow-glow',
+                  'border-accent/60 bg-accent/15 text-accent-dark shadow-glow',
                 st.status === 'done' &&
-                  'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+                  'border-emerald-500/60 bg-emerald-500/15 text-emerald-700',
                 st.status === 'skipped' &&
-                  'border-line/40 bg-bg-soft/20 text-muted line-through opacity-60',
+                  'border-line/40 bg-bg-soft/20 text-citi-blue line-through opacity-60',
               )}
             >
               <div className="inline-flex items-center gap-1.5">
                 {st.status === 'running' && <Loader2 className="w-3 h-3 animate-spin" />}
                 {st.status === 'done' && <Check className="w-3 h-3" />}
                 {st.status === 'skipped' && <MinusCircle className="w-3 h-3" />}
-                {st.status === 'idle' && <span className="w-2 h-2 rounded-full bg-zinc-700" />}
+                {st.status === 'idle' && <span className="w-2 h-2 rounded-full bg-slate-300" />}
                 <span className="font-medium">{label}</span>
                 {st.ms != null && (
                   <span className="text-[10px] tabular-nums opacity-70">

@@ -71,13 +71,13 @@ export default function AnalyticsTab() {
 
       {summary?.token_totals && (summary.token_totals.prompt > 0 || summary.token_totals.completion > 0) && (
         <div className="card-soft p-3 flex flex-wrap items-center gap-4 text-xs">
-          <span className="text-muted uppercase tracking-wider text-[10px]">token breakdown</span>
-          <span><span className="text-muted">prompt</span>{' '}<span className="text-zinc-200 font-medium tabular-nums">{fmtTokens(summary.token_totals.prompt)}</span></span>
-          <span><span className="text-muted">completion</span>{' '}<span className="text-zinc-200 font-medium tabular-nums">{fmtTokens(summary.token_totals.completion)}</span></span>
-          <span><span className="text-muted">total</span>{' '}<span className="text-accent-soft font-semibold tabular-nums">{fmtTokens(summary.token_totals.total)}</span></span>
+          <span className="text-citi-blue uppercase tracking-wider text-[10px]">token breakdown</span>
+          <span><span className="text-citi-blue">prompt</span>{' '}<span className="text-ink font-medium tabular-nums">{fmtTokens(summary.token_totals.prompt)}</span></span>
+          <span><span className="text-citi-blue">completion</span>{' '}<span className="text-ink font-medium tabular-nums">{fmtTokens(summary.token_totals.completion)}</span></span>
+          <span><span className="text-citi-blue">total</span>{' '}<span className="text-accent-dark font-semibold tabular-nums">{fmtTokens(summary.token_totals.total)}</span></span>
           {summary.token_totals.total > 0 && summary.total_queries > 0 && (
-            <span className="ml-auto text-muted">
-              avg/query: <span className="text-zinc-300 tabular-nums">{Math.round(summary.token_totals.total / summary.total_queries)}</span>
+            <span className="ml-auto text-citi-blue">
+              avg/query: <span className="text-ink tabular-nums">{Math.round(summary.token_totals.total / summary.total_queries)}</span>
             </span>
           )}
         </div>
@@ -121,12 +121,12 @@ export default function AnalyticsTab() {
           <div className="space-y-2">
             {(summary?.top_documents || []).map(d => (
               <div key={d.document_name} className="card-soft p-2 flex items-center justify-between">
-                <span className="text-xs truncate flex-1 text-zinc-300">{d.document_name}</span>
+                <span className="text-xs truncate flex-1 text-ink">{d.document_name}</span>
                 <span className="chip text-[10px]">{d.appearances}</span>
               </div>
             ))}
             {!summary?.top_documents?.length && (
-              <div className="text-xs text-muted py-4 text-center">No queries yet.</div>
+              <div className="text-xs text-citi-blue py-4 text-center">No queries yet.</div>
             )}
           </div>
         </div>
@@ -135,11 +135,11 @@ export default function AnalyticsTab() {
       <div className="card overflow-hidden">
         <div className="px-4 py-2 border-b border-line flex items-center justify-between">
           <h3 className="text-sm font-medium">Recent queries</h3>
-          <span className="text-xs text-muted">{queries.length} shown</span>
+          <span className="text-xs text-citi-blue">{queries.length} shown</span>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
-            <thead className="bg-bg-soft text-muted">
+            <thead className="bg-bg-soft text-citi-blue">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">When</th>
                 <th className="text-left px-3 py-2 font-medium">Query</th>
@@ -155,7 +155,7 @@ export default function AnalyticsTab() {
                 const tok = (q as any).token_usage as { total?: number } | undefined
                 return (
                   <tr key={q.id} className="border-t border-line/60 hover:bg-bg-soft/40">
-                    <td className="px-3 py-2 text-muted whitespace-nowrap">
+                    <td className="px-3 py-2 text-citi-blue whitespace-nowrap">
                       {new Date(q.created_at).toLocaleTimeString()}
                     </td>
                     <td className="px-3 py-2 max-w-md truncate">{q.query_text}</td>
@@ -168,10 +168,10 @@ export default function AnalyticsTab() {
                           ))}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right text-zinc-300">
+                    <td className="px-3 py-2 text-right text-ink">
                       {q.latency_ms.total != null ? `${Number(q.latency_ms.total).toFixed(0)} ms` : '—'}
                     </td>
-                    <td className="px-3 py-2 text-right text-zinc-300 tabular-nums">
+                    <td className="px-3 py-2 text-right text-ink tabular-nums">
                       {fmtTokens(tok?.total)}
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -183,7 +183,7 @@ export default function AnalyticsTab() {
               })}
               {!queries.length && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-muted text-xs">
+                  <td colSpan={7} className="px-3 py-8 text-center text-citi-blue text-xs">
                     No queries logged yet.
                   </td>
                 </tr>
@@ -203,7 +203,7 @@ function Stat({
 }) {
   return (
     <div className="card p-3">
-      <div className="flex items-center gap-2 text-[10px] uppercase text-muted mb-1">
+      <div className="flex items-center gap-2 text-[10px] uppercase text-citi-blue mb-1">
         <Icon className="w-3 h-3" />
         {label}
       </div>
@@ -230,21 +230,21 @@ function StageTokenBars({
     <div className="space-y-2">
       {rows.map(r => {
         const pct = (r.total / max) * 100
-        const color = STAGE_PALETTE[r.stage] ?? 'bg-zinc-600/70'
+        const color = STAGE_PALETTE[r.stage] ?? 'bg-slate-400/70'
         return (
           <div key={r.stage} className="flex items-center gap-3 text-xs">
-            <div className="w-20 shrink-0 text-zinc-300 font-medium">{r.stage}</div>
+            <div className="w-20 shrink-0 text-ink font-medium">{r.stage}</div>
             <div className="flex-1 h-3 rounded-md bg-bg-soft overflow-hidden border border-line">
               <div
                 className={`h-full ${color} transition-all`}
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="w-44 shrink-0 text-right tabular-nums text-muted">
-              <span className="text-zinc-200 font-medium">{fmtTokens(r.total)}</span>{' '}
+            <div className="w-44 shrink-0 text-right tabular-nums text-citi-blue">
+              <span className="text-ink font-medium">{fmtTokens(r.total)}</span>{' '}
               <span className="opacity-70">({fmtTokens(r.prompt)} in / {fmtTokens(r.completion)} out)</span>
             </div>
-            <div className="w-16 shrink-0 text-right text-muted tabular-nums">{r.uses}× used</div>
+            <div className="w-16 shrink-0 text-right text-citi-blue tabular-nums">{r.uses}× used</div>
           </div>
         )
       })}

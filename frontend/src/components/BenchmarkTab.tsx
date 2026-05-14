@@ -171,20 +171,20 @@ export default function BenchmarkTab({ config }: Props) {
             <FlaskConical className="w-4 h-4 text-accent" />
             <h2 className="font-medium text-sm">Run a benchmark batch</h2>
           </div>
-          <p className="text-xs text-muted mb-3 leading-relaxed">
+          <p className="text-xs text-citi-blue mb-3 leading-relaxed">
             Pulls every question in the golden set, runs the pipeline with the chosen strategy, and computes:
             recall@5, recall@10, MRR@10, nDCG@10, faithfulness, context precision.
-            History saved to <code className="text-accent-soft">vector.bench_runs</code>.
+            History saved to <code className="text-accent-dark">vector.bench_runs</code>.
           </p>
           {questions.length === 0 && (
             <div className="card-soft p-3 mb-3 flex items-start gap-2 border-amber-500/40 bg-amber-500/5">
-              <AlertCircle className="w-4 h-4 text-amber-300 mt-0.5 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
               <div className="text-xs leading-relaxed">
                 <p className="text-amber-200 font-medium mb-1">
                   No golden questions yet — the Run button stays disabled.
                 </p>
-                <p className="text-zinc-400">
-                  Click <span className="text-accent-soft">✨ Seed from documents</span> on the right
+                <p className="text-citi-blue">
+                  Click <span className="text-accent-dark">✨ Seed from documents</span> on the right
                   to auto-generate a starter set from your ingested PDFs, or add questions
                   manually in the sidebar.
                 </p>
@@ -200,7 +200,7 @@ export default function BenchmarkTab({ config }: Props) {
           />
           <div className="flex justify-end mt-3 items-center gap-3">
             {questions.length > 0 && (
-              <span className="text-xs text-muted">
+              <span className="text-xs text-citi-blue">
                 will run {questions.length} question{questions.length === 1 ? '' : 's'}
               </span>
             )}
@@ -224,7 +224,7 @@ export default function BenchmarkTab({ config }: Props) {
               {progress && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-muted shrink-0 tabular-nums">
+                    <span className="text-[11px] text-citi-blue shrink-0 tabular-nums">
                       question {Math.min(progress.processed + (running ? 1 : 0), progress.total)} / {progress.total}
                     </span>
                     <div className="flex-1 h-2 rounded-full bg-bg-soft overflow-hidden">
@@ -233,11 +233,11 @@ export default function BenchmarkTab({ config }: Props) {
                         style={{ width: `${progress.total ? Math.min(100, ((progress.processed) / progress.total) * 100) : 0}%` }}
                       />
                     </div>
-                    <span className="text-[11px] text-muted shrink-0 tabular-nums w-12 text-right">
+                    <span className="text-[11px] text-citi-blue shrink-0 tabular-nums w-12 text-right">
                       {progress.total ? Math.round((progress.processed / progress.total) * 100) : 0}%
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-muted">
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-citi-blue">
                     <span>tokens used so far:</span>
                     <TokenBadge usage={tokensSoFar} variant="accent" />
                   </div>
@@ -245,16 +245,16 @@ export default function BenchmarkTab({ config }: Props) {
               )}
               {currentQuestion && (
                 <div className="text-xs">
-                  <span className="text-muted">running</span>{' '}
-                  <span className="text-zinc-300">#{currentQuestion.id}</span>{' '}
-                  <span className="text-zinc-100 font-medium">{currentQuestion.text.slice(0, 100)}{currentQuestion.text.length > 100 ? '…' : ''}</span>
+                  <span className="text-citi-blue">running</span>{' '}
+                  <span className="text-ink">#{currentQuestion.id}</span>{' '}
+                  <span className="text-ink font-medium">{currentQuestion.text.slice(0, 100)}{currentQuestion.text.length > 100 ? '…' : ''}</span>
                 </div>
               )}
               {Object.keys(stages).length > 0 && (
                 <PipelineTracker stages={stages} />
               )}
               {judging && (
-                <div className="inline-flex items-center gap-1.5 text-[11px] text-accent-soft">
+                <div className="inline-flex items-center gap-1.5 text-[11px] text-accent-dark">
                   <span className="w-2 h-2 rounded-full bg-accent animate-pulse-slow" />
                   judging {judging.replace('_', ' ')}…
                 </div>
@@ -267,13 +267,13 @@ export default function BenchmarkTab({ config }: Props) {
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {Object.entries(result.metrics).map(([k, v]) => (
                   <div key={k} className="card-soft p-2">
-                    <div className="text-[10px] uppercase text-muted">{k}</div>
+                    <div className="text-[10px] uppercase text-citi-blue">{k}</div>
                     <div className="text-lg font-semibold">{fmtPct(v, 1)}</div>
                   </div>
                 ))}
               </div>
               {finalTokens && (
-                <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
+                <div className="mt-3 flex items-center justify-between gap-2 text-xs text-citi-blue">
                   <span>aggregate token spend for run #{result.run_id}:</span>
                   <TokenBadge usage={finalTokens} size="md" variant="accent" />
                 </div>
@@ -311,7 +311,7 @@ export default function BenchmarkTab({ config }: Props) {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="text-[10px] text-muted mt-2 flex flex-wrap gap-3">
+          <div className="text-[10px] text-citi-blue mt-2 flex flex-wrap gap-3">
             <Legend color="#7c5cff" label="recall@5" />
             <Legend color="#34d399" label="MRR@10" />
             <Legend color="#fbbf24" label="nDCG@10" />
@@ -324,12 +324,12 @@ export default function BenchmarkTab({ config }: Props) {
           <div className="card overflow-hidden">
             <div className="px-4 py-2 border-b border-line text-sm font-medium flex items-center justify-between">
               <span>Per-question detail</span>
-              <span className="text-xs text-muted">
+              <span className="text-xs text-citi-blue">
                 {perQuestion.length}{progress?.total ? ` / ${progress.total}` : ''} questions
               </span>
             </div>
             <table className="min-w-full text-xs">
-              <thead className="bg-bg-soft text-muted">
+              <thead className="bg-bg-soft text-citi-blue">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">#</th>
                   <th className="text-left px-3 py-2 font-medium">Question</th>
@@ -351,9 +351,9 @@ export default function BenchmarkTab({ config }: Props) {
                         onClick={() => setExpandedRow(open ? null : q.id)}
                         className="border-t border-line/60 cursor-pointer hover:bg-bg-soft/40"
                       >
-                        <td className="px-3 py-2 text-muted">{q.id}</td>
+                        <td className="px-3 py-2 text-citi-blue">{q.id}</td>
                         <td className="px-3 py-2 truncate max-w-md">
-                          <span className="text-muted mr-1">{open ? '▾' : '▸'}</span>
+                          <span className="text-citi-blue mr-1">{open ? '▾' : '▸'}</span>
                           {q.question}
                         </td>
                         <td className="px-3 py-2 text-right">{fmtPct(q.metrics['recall@5'], 0)}</td>
@@ -364,19 +364,19 @@ export default function BenchmarkTab({ config }: Props) {
                         <td className="px-3 py-2 text-right">
                           {(q as any).tokens
                             ? <TokenBadge usage={(q as any).tokens} variant="plain" size="sm" />
-                            : <span className="text-muted">—</span>}
+                            : <span className="text-citi-blue">—</span>}
                         </td>
                       </tr>
                       {open && (
                         <tr className="bg-bg-soft/30">
                           <td colSpan={8} className="px-4 py-3">
                             <div className="space-y-2">
-                              <div className="text-[10px] uppercase text-muted">
+                              <div className="text-[10px] uppercase text-citi-blue">
                                 Per-stage tokens for this question
                               </div>
                               {qStages
                                 ? <PipelineTracker stages={qStages} />
-                                : <div className="text-xs text-muted">no stage breakdown captured</div>}
+                                : <div className="text-xs text-citi-blue">no stage breakdown captured</div>}
                             </div>
                           </td>
                         </tr>
@@ -405,7 +405,7 @@ export default function BenchmarkTab({ config }: Props) {
               title="Auto-generate 2 questions per ingested document using the active LLM"
               className={cn(
                 'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px]',
-                'bg-accent/15 text-accent-soft border border-accent/40 hover:bg-accent/25',
+                'bg-accent/15 text-accent-dark border border-accent/40 hover:bg-accent/25',
                 'transition disabled:opacity-50',
               )}
             >
@@ -420,20 +420,20 @@ export default function BenchmarkTab({ config }: Props) {
                   <p className="text-xs flex-1">{q.question}</p>
                   <button
                     onClick={() => deleteQ(q.id)}
-                    className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-400 transition"
+                    className="opacity-0 group-hover:opacity-100 text-citi-blue hover:text-red-700 transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 {q.ground_truth_chunk_ids.length > 0 && (
-                  <div className="text-[10px] text-muted mt-1">
+                  <div className="text-[10px] text-citi-blue mt-1">
                     ground truth: [{q.ground_truth_chunk_ids.join(', ')}]
                   </div>
                 )}
               </div>
             ))}
             {!questions.length && (
-              <div className="text-xs text-muted text-center py-4">No golden questions yet.</div>
+              <div className="text-xs text-citi-blue text-center py-4">No golden questions yet.</div>
             )}
           </div>
           <div className="space-y-2">
@@ -529,11 +529,11 @@ function LabelPicker({
   return (
     <div className="space-y-2">
       <label className="block">
-        <div className="text-[10px] uppercase text-muted mb-1 flex items-center gap-2">
+        <div className="text-[10px] uppercase text-citi-blue mb-1 flex items-center gap-2">
           <span>Run label</span>
           <button
             onClick={suggestFromStrategy}
-            className="ml-auto text-[10px] text-accent-soft hover:text-accent"
+            className="ml-auto text-[10px] text-accent-dark hover:text-accent"
           >
             ✨ suggest from current strategy
           </button>
@@ -547,7 +547,7 @@ function LabelPicker({
       </label>
 
       <div>
-        <div className="text-[10px] uppercase text-muted mb-1">Presets</div>
+        <div className="text-[10px] uppercase text-citi-blue mb-1">Presets</div>
         <div className="flex flex-wrap gap-1.5">
           {PRESET_TAGS.map(tag => {
             const on = selectedTags.includes(tag)
@@ -557,8 +557,8 @@ function LabelPicker({
                 className={cn(
                   'inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] cursor-pointer transition',
                   on
-                    ? 'border-accent/60 bg-accent/15 text-accent-soft shadow-glow'
-                    : 'border-line bg-bg-soft/40 text-zinc-400 hover:border-accent/40',
+                    ? 'border-accent/60 bg-accent/15 text-accent-dark shadow-glow'
+                    : 'border-line bg-bg-soft/40 text-citi-blue hover:border-accent/40',
                 )}
               >
                 <input
@@ -576,7 +576,7 @@ function LabelPicker({
 
       {recentLabels.length > 0 && (
         <div>
-          <div className="text-[10px] uppercase text-muted mb-1">Past run labels</div>
+          <div className="text-[10px] uppercase text-citi-blue mb-1">Past run labels</div>
           <div className="flex flex-wrap gap-1.5">
             {recentLabels.map(lbl => {
               const on = value === lbl
@@ -586,8 +586,8 @@ function LabelPicker({
                   className={cn(
                     'inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] cursor-pointer transition',
                     on
-                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                      : 'border-line bg-bg-soft/40 text-zinc-400 hover:border-emerald-500/30',
+                      ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700'
+                      : 'border-line bg-bg-soft/40 text-citi-blue hover:border-emerald-500/30',
                   )}
                 >
                   <input

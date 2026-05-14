@@ -4,58 +4,75 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
   html, body, #root {
     height: 100%;
   }
   body {
+    /* Cool near-white page with a faint Citi-blue glow at the top.
+       Card surfaces (pure white) sit clearly on top of this. */
     background:
-      radial-gradient(ellipse at top, rgba(124,92,255,0.10), transparent 50%),
-      radial-gradient(ellipse at bottom right, rgba(52,211,153,0.06), transparent 50%),
-      #0a0a0b;
+      radial-gradient(ellipse at top, rgba(5,109,174,0.10), transparent 55%),
+      #f5f8fd;
+    color: #0b1320;            /* ink — primary text is black */
     overscroll-behavior: none;
   }
+  /* All headings inherit ink unless explicitly overridden */
+  h1, h2, h3, h4, h5, h6 { color: #0b1320; }
+
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 8px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a3a42; }
+  ::-webkit-scrollbar-thumb { background: #6b7c95; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #003B70; }
 }
 
 @layer components {
   .card {
-    @apply bg-bg-card border border-line rounded-2xl;
+    @apply bg-bg-card border border-line rounded-2xl shadow-card text-ink;
   }
   .card-soft {
-    @apply bg-bg-soft border border-line/60 rounded-xl;
+    @apply bg-bg-card border border-line rounded-xl shadow-card text-ink;
   }
+
+  /* Chips — navy text on tinted blue, never gray */
   .chip {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
-           bg-bg-soft border border-line text-zinc-300;
+           font-medium border border-line bg-bg-soft text-citi-blue;
   }
   .chip-accent {
-    @apply chip border-accent/40 text-accent-soft bg-accent/10;
+    @apply chip border-accent/70 text-white bg-accent;
+  }
+  .chip-outline {
+    @apply chip border-accent/60 text-accent-dark bg-white;
   }
   .chip-success {
-    @apply chip border-emerald-500/40 text-emerald-300 bg-emerald-500/10;
+    @apply chip border-emerald-600 text-white bg-emerald-700;
   }
+
+  /* Inline citations: solid Citi-blue pill, white digit — high punch */
   .citation-marker {
     @apply inline-flex items-center justify-center min-w-[1.4rem] h-[1.05rem]
            px-1 mx-[1px] rounded-md text-[10px] font-semibold leading-none
-           bg-accent/15 text-accent-soft border border-accent/40
-           hover:bg-accent/30 hover:text-zinc-50 transition cursor-pointer
-           align-[2px] tabular-nums;
+           bg-accent-dark text-white border border-accent-dark
+           hover:bg-accent transition cursor-pointer
+           align-[2px] tabular-nums shadow-sm;
   }
+
+  /* Answer panel — pure white, body text in ink */
   .answer-card {
     @apply card p-6 min-h-[280px] relative;
   }
   .answer-card .answer-body {
-    @apply max-w-[68ch] mx-auto;
+    @apply max-w-[68ch] mx-auto text-ink;
   }
+
+  /* The brand wordmark gradient (header) */
   .heading-glow {
-    background: linear-gradient(90deg, #a594ff 0%, #d8d3ff 50%, #34d399 100%);
+    background: linear-gradient(90deg, #003B70 0%, #056DAE 50%, #1B8FD9 100%);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
+    font-weight: 700;
   }
 }

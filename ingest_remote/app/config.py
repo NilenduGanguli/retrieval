@@ -56,6 +56,20 @@ class RemoteIngestSettings(BaseSettings):
     # ---------- Embedding ----------
     embedding_batch_size: int = Field(default=16)
 
+    # ---------- S3 / MinIO — source-PDF persistence ----------
+    # When enabled, the service uploads every ingested PDF to S3 and
+    # UPSERTs the documents row, so the source is recoverable for
+    # View/Download even when the remote service is deployed standalone.
+    # Turn this OFF when the main backend already uploads (the usual
+    # "backend in front" topology) to avoid double-upload.
+    s3_enabled: bool = Field(default=False)
+    s3_endpoint_url: str = Field(default="")
+    s3_region: str = Field(default="us-east-1")
+    s3_bucket: str = Field(default="rag-uploads")
+    s3_access_key: str = Field(default="")
+    s3_secret_key: str = Field(default="")
+    s3_use_ssl: bool = Field(default=False)
+
     # ---------- Working dir ----------
     upload_dir: str = Field(default="/tmp/remote_ingest_uploads")
 

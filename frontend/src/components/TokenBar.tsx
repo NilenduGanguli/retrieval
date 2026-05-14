@@ -39,7 +39,7 @@ export default function TokenBar({
     const st = stages[key]
     const tok = Number(st?.tokens?.total ?? 0)
     if (!tok) return []
-    return [{ key, label: key, tok, color: PALETTE[key] ?? 'bg-zinc-600/70' }]
+    return [{ key, label: key, tok, color: PALETTE[key] ?? 'bg-slate-400/70' }]
   })
 
   if (segs.length === 0 && fallbackTotal) {
@@ -50,7 +50,7 @@ export default function TokenBar({
 
   if (total === 0) {
     return (
-      <div className="text-xs text-muted text-center py-2">
+      <div className="text-xs text-citi-blue text-center py-2">
         No LLM stages ran for this query — embedding-only retrieval consumes no chat tokens.
       </div>
     )
@@ -72,7 +72,7 @@ export default function TokenBar({
           )
         })}
       </div>
-      <div className="flex flex-wrap gap-2 text-[10px] text-muted">
+      <div className="flex flex-wrap gap-2 text-[10px] text-citi-blue">
         {segs.map(seg => {
           const st = stages[seg.key]
           const tokIn = Number(st?.tokens?.prompt ?? 0)
@@ -81,7 +81,7 @@ export default function TokenBar({
             <span key={seg.key} className="inline-flex items-center gap-1.5">
               <span className={cn('w-2 h-2 rounded-sm', seg.color)} />
               <span>{seg.label}</span>
-              <span className="text-zinc-300 tabular-nums">{fmt(seg.tok)}</span>
+              <span className="text-ink tabular-nums">{fmt(seg.tok)}</span>
               {(tokIn || tokOut) ? (
                 <span className="opacity-70 tabular-nums">({fmt(tokIn)}/{fmt(tokOut)})</span>
               ) : null}

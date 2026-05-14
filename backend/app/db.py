@@ -118,6 +118,105 @@ async def ensure_contextual_embedding_column() -> None:
             logger.info("Added context_embedding vector(%d) + HNSW index", dim)
 
 
+async def ensure_schema_and_tables() -> dict:
+    """Idempotent: ensure the configured schema + base tables exist.
+
+    Called BEFORE migrations run so a fresh DB doesn't fail the
+    migration ALTERs (which assume chunk_embeddings already exists).
+
+    Returns a summary dict for logging.
+    """
+    summary: dict = {
+        "schema_existed": None,
+        "pgvector_installed": None,
+        "table_created": False,
+    }
+    schema = settings.pg_schema
+    table = settings.pg_table
+    role = settings.app_owner_role
+
+    async with acquire() as conn:
+        # 1. Schema
+        schema_exists = await conn.fetchval(
+            "SELECT 1 FROM information_schema.schemata WHERE schema_name = $1",
+            schema,
+        )
+        summary["schema_existed"] = bool(schema_exists)
+        if not schema_exists:
+            if role:
+                try:
+                    await conn.execute(f'SET ROLE "{role}"')
+                    logger.info("SET ROLE %s", role)
+                except Exception as exc:
+                    logger.warning("SET ROLE %s failed: %s", role, exc)
+            await conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+            logger.info("created schema %s", schema)
+
+        # 2. pgvector extension
+        ext = await conn.fetchval("SELECT 1 FROM pg_extension WHERE extname='vector'")
+        summary["pgvector_installed"] = bool(ext)
+        if not ext:
+            try:
+                await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                summary["pgvector_installed"] = True
+                logger.info("installed pgvector extension")
+            except Exception as exc:
+                logger.warning(
+                    "pgvector extension install failed (run 'CREATE EXTENSION vector' "
+                    "as superuser): %s", exc,
+                )
+
+        # 3. chunk_embeddings table — only the narrow shape (migration 001/002
+        #    add the rest of the columns via ALTER if needed)
+        has_table = await conn.fetchval(
+            """
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = $1 AND table_name = $2
+            """,
+            schema, table,
+        )
+        if not has_table:
+            if role:
+                try:
+                    await conn.execute(f'SET ROLE "{role}"')
+                except Exception:
+                    pass
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS "{schema}"."{table}" (
+                    id                BIGSERIAL PRIMARY KEY,
+                    content           TEXT NOT NULL,
+                    "chunkUUID"       TEXT UNIQUE,
+                    "pageNumber"      INTEGER,
+                    "tokenCount"      INTEGER,
+                    "chunkType"       TEXT,
+                    "chunkBoundingBox" JSONB,
+                    "documentName"    TEXT,
+                    "jobId"           TEXT
+                )
+            """)
+            summary["table_created"] = True
+            logger.info("created %s.%s", schema, table)
+            # embedding column added once we know the dim (post-ingestion)
+            # — but if pgvector is available, add a default 768-D column
+            #   so an empty DB still answers retrieval queries.
+            if summary["pgvector_installed"]:
+                try:
+                    await conn.execute(
+                        f'ALTER TABLE "{schema}"."{table}" '
+                        f"ADD COLUMN IF NOT EXISTS embedding vector(768)"
+                    )
+                    await conn.execute(
+                        f'CREATE INDEX IF NOT EXISTS {table}_hnsw_idx '
+                        f'ON "{schema}"."{table}" '
+                        f"USING hnsw (embedding vector_cosine_ops)"
+                    )
+                except Exception as exc:
+                    logger.warning("default embedding column add failed: %s", exc)
+
+    logger.info("schema/table bootstrap: %s", summary)
+    return summary
+
+
 async def run_migrations(sql_path: str) -> None:
     """Apply a SQL migration file."""
     with open(sql_path, "r", encoding="utf-8") as f:

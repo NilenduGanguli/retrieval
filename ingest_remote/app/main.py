@@ -18,14 +18,17 @@ import json
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from sse_starlette.sse import EventSourceResponse
 
+from .bootstrap import bootstrap_schema
 from .config import settings
 from .ingest_core import ingest_pdf
 from .local_ingest import ingest_pdf_local
+from .s3_store import s3_ensure_bucket
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -33,7 +36,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="RAG Remote Ingestion Service")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # 1. Schema bootstrap — make sure vector.* tables exist
+    summary = bootstrap_schema()
+    logger.info("startup schema bootstrap: %s", summary)
+    # 2. S3 bucket bootstrap — only if S3 is enabled on this service
+    if settings.s3_enabled:
+        try:
+            ok = await s3_ensure_bucket()
+            logger.info("startup s3 bucket bootstrap: ok=%s bucket=%s",
+                        ok, settings.s3_bucket)
+        except Exception:
+            logger.exception("s3 bucket bootstrap failed (continuing)")
+    yield
+
+
+app = FastAPI(title="RAG Remote Ingestion Service", lifespan=lifespan)
 
 UPLOAD_DIR = Path(settings.upload_dir)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,6 +79,8 @@ async def health() -> dict:
         "vertex_embedding_model": settings.vertex_embedding_model,
         "pg_database": settings.pg_database,
         "pg_index": settings.pg_index,
+        "s3_enabled": settings.s3_enabled,
+        "s3_bucket": settings.s3_bucket if settings.s3_enabled else None,
     }
 
 
@@ -98,12 +120,21 @@ async def ingest(
 
     async def _worker() -> None:
         try:
+            # Persist source PDF to S3 + UPSERT documents row (when enabled
+            # on THIS service; skipped silently otherwise).
+            from .persist import persist_source
+            s3_uri = await persist_source(str(saved), doc_name)
+            if s3_uri:
+                await progress_cb({"type": "stage", "stage": "s3", "status": "done", "s3_uri": s3_uri})
+
             summary = await runner(
                 str(saved),
                 document_name=doc_name,
                 overrides=overrides,
                 progress_cb=progress_cb,
             )
+            if s3_uri:
+                summary = {**summary, "s3_uri": s3_uri}
             await queue.put({"type": "done", **summary})
         except Exception as exc:
             logger.exception("remote ingest failed (%s mode)", provider)

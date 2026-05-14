@@ -15,6 +15,7 @@ from .config import settings
 from .db import (
     close_pool,
     ensure_contextual_embedding_column,
+    ensure_schema_and_tables,
     healthcheck,
     init_pool,
     run_migrations,
@@ -35,6 +36,9 @@ async def lifespan(app: FastAPI):
     app.state.s3_ready = False
     try:
         await init_pool()
+        # 1. Schema + base table bootstrap (creates schema/table on a fresh DB)
+        await ensure_schema_and_tables()
+        # 2. SQL migrations (idempotent — safe on existing or fresh DB)
         migration_dir = Path(__file__).resolve().parents[1] / "migrations"
         for sql_file in sorted(migration_dir.glob("*.sql")):
             try:
@@ -42,6 +46,7 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.exception("migration failed: %s", sql_file)
                 raise
+        # 3. Add the runtime-dim vector column for contextual retrieval
         await ensure_contextual_embedding_column()
         app.state.db_ready = True
         logger.info("ready (DB connected)")
