@@ -20,12 +20,49 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
-# Make the existing get_llm.py importable. It lives in the project root.
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+# Make the existing get_llm.py importable. We look in a few places so the
+# import works in both the dev tree and the Docker deployment:
+#   1. $STELLAR_GETLLM_PATH (env override)
+#   2. backend/get_llm.py     ← committed copy, ships with the backend
+#   3. <repo-root>/get_llm.py ← canonical dev location (../../get_llm.py)
+#   4. /app/get_llm.py         ← Docker image (COPY get_llm.py /app/)
+#
+# The found directory is force-promoted to the front of sys.path so that
+# a stray get_llm.py somewhere else on the path can't shadow our copy.
+def _ensure_get_llm_importable() -> None:
+    if "get_llm" in sys.modules:
+        return
+    candidates: list[Path] = []
+    env_path = os.environ.get("STELLAR_GETLLM_PATH")
+    if env_path:
+        p = Path(env_path).expanduser().resolve()
+        candidates.append(p if p.is_dir() else p.parent)
+    here = Path(__file__).resolve()
+    candidates.append(here.parents[1])  # backend/
+    candidates.append(here.parents[2])  # <repo-root>/
+    candidates.append(Path("/app"))       # canonical Docker root
+    for c in candidates:
+        if (c / "get_llm.py").is_file():
+            s = str(c)
+            while s in sys.path:
+                sys.path.remove(s)
+            sys.path.insert(0, s)
+            return
+    # Fall through — let `import get_llm` raise ModuleNotFoundError
+    # with the standard message; the user will see the candidate list
+    # in our log warning.
+    import logging as _l
+    _l.getLogger(__name__).warning(
+        "get_llm.py not found in any of: %s — set STELLAR_GETLLM_PATH or "
+        "place the file inside backend/ or the repo root.",
+        [str(c) for c in candidates],
+    )
+
+
+_ensure_get_llm_importable()
 
 # Note: get_llm.py validates env vars at import time, so we lazy-import it
 # only when the client is actually instantiated. This keeps modules
