@@ -1,0 +1,15 @@
+services:
+  rag-studio:
+    build:
+      context: .
+    image: rag-studio:0.1.0
+    container_name: rag-studio
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+    # Connects to your existing Postgres via PG_HOST in .env;
+    # no DB container — your pgvector instance already exists.

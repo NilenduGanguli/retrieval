@@ -1,0 +1,24 @@
+fastapi>=0.110
+uvicorn[standard]>=0.30
+pydantic>=2.6
+pydantic-settings>=2.2
+python-multipart>=0.0.9
+sse-starlette>=2.1
+httpx>=0.27
+
+psycopg2-binary>=2.9
+pgvector>=0.3
+
+# Used when LLM_PROVIDER=vertex (local-test path; no WEGA/Stellar required).
+pypdf>=4.0
+google-genai>=0.3
+
+# Stellar embeddings are NOT a separate wheel — the remote service reuses the
+# repo's `get_llm.py` (place it next to ingest_remote/ or set STELLAR_GETLLM_PATH).
+# get_llm.py depends on the openai client (already an install of fastapi's stack
+# transitively, but pin it explicitly so the dep is obvious):
+openai>=1.30
+
+# Internal wheel — drop into wheels/ and reference here (not committed).
+# Required when LLM_PROVIDER=wega. Example (uncomment + adjust once present):
+# wheels/wega_chunker-1.2.3-py3-none-any.whl

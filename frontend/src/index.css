@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at top, rgba(124,92,255,0.10), transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(52,211,153,0.06), transparent 50%),
+      #0a0a0b;
+    overscroll-behavior: none;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a42; }
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card border border-line rounded-2xl;
+  }
+  .card-soft {
+    @apply bg-bg-soft border border-line/60 rounded-xl;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
+           bg-bg-soft border border-line text-zinc-300;
+  }
+  .chip-accent {
+    @apply chip border-accent/40 text-accent-soft bg-accent/10;
+  }
+  .chip-success {
+    @apply chip border-emerald-500/40 text-emerald-300 bg-emerald-500/10;
+  }
+  .citation-marker {
+    @apply inline-flex items-center justify-center min-w-[1.4rem] h-[1.05rem]
+           px-1 mx-[1px] rounded-md text-[10px] font-semibold leading-none
+           bg-accent/15 text-accent-soft border border-accent/40
+           hover:bg-accent/30 hover:text-zinc-50 transition cursor-pointer
+           align-[2px] tabular-nums;
+  }
+  .answer-card {
+    @apply card p-6 min-h-[280px] relative;
+  }
+  .answer-card .answer-body {
+    @apply max-w-[68ch] mx-auto;
+  }
+  .heading-glow {
+    background: linear-gradient(90deg, #a594ff 0%, #d8d3ff 50%, #34d399 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+}
