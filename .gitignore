@@ -54,3 +54,6 @@ application_default_credentials.json
 # Internal wheel files (WEGA chunker pyarmour, etc.)
 ingest_remote/wheels/
 *.whl
+
+# MinIO local data dir (don't commit local object store state)
+.minio-data/
