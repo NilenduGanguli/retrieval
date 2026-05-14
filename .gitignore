@@ -47,11 +47,16 @@ service-account.json
 application_default_credentials.json
 
 # Internal VDI-only modules (decoded from screenshots — never commit)
+# Match both the project-root copies and the ingest_remote/ deploy copies.
 /llm_vertex.py
-/ingest.py
 /get_llm.py
+/ingest.py
 /connect.py
 /rag_streamlit.py
+ingest_remote/llm_vertex.py
+ingest_remote/ingest.py
+ingest_remote/connect.py
+ingest_remote/rag_streamlit.py
 !/docs/RAG_Framework_Documentation.pdf
 
 # Internal wheel files (WEGA chunker pyarmour, etc.)

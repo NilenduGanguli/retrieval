@@ -41,21 +41,42 @@ STELLAR_EMBEDDING_MODEL = "gte-large-en-v1.5"
 # Locate the project-root get_llm.py
 # ---------------------------------------------------------------------------
 def _ensure_get_llm_importable() -> None:
+    """Pin the search path for get_llm.py.
+
+    Priority:
+      1. $STELLAR_GETLLM_PATH (full path to the file or its parent dir)
+      2. ingest_remote/get_llm.py  ← preferred for standalone deploys
+      3. <repo-root>/get_llm.py    ← fallback when running from the dev tree
+
+    The found directory is force-promoted to the front of `sys.path`
+    (even if it's already on the path further down), so a stray
+    `get_llm.py` in some other directory can't shadow the deploy copy.
+    """
     if "get_llm" in sys.modules:
         return
     candidates: List[Path] = []
     env_path = os.environ.get("STELLAR_GETLLM_PATH")
     if env_path:
-        candidates.append(Path(env_path).expanduser().resolve())
+        p = Path(env_path).expanduser().resolve()
+        candidates.append(p if p.is_dir() else p.parent)
     here = Path(__file__).resolve()
-    candidates.append(here.parents[1])  # ingest_remote/
-    candidates.append(here.parents[2])  # retrieval/  (when running from the repo)
+    candidates.append(here.parents[1])  # ingest_remote/  ← preferred
+    candidates.append(here.parents[2])  # retrieval/      ← dev fallback
     for c in candidates:
-        if (c / "get_llm.py").is_file() and str(c) not in sys.path:
-            sys.path.insert(0, str(c))
-            logger.info("get_llm.py discovered at %s", c)
+        if (c / "get_llm.py").is_file():
+            s = str(c)
+            # Force-promote to the front. If it's already elsewhere on
+            # the path we'd otherwise lose to another directory that
+            # happens to also have a get_llm.py.
+            while s in sys.path:
+                sys.path.remove(s)
+            sys.path.insert(0, s)
+            logger.info("get_llm.py pinned to front of sys.path from %s", c)
             return
-    logger.debug("get_llm.py not found in known locations; relying on PYTHONPATH")
+    logger.warning(
+        "get_llm.py not found in: %s (set STELLAR_GETLLM_PATH or drop the file in ingest_remote/)",
+        [str(c) for c in candidates],
+    )
 
 
 # ---------------------------------------------------------------------------

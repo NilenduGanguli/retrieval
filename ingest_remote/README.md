@@ -59,24 +59,38 @@ ingest_remote/
 
 `wheels/` and `*.whl` are gitignored — never commit these.
 
-### 2. `get_llm.py`
+### 2. `get_llm.py` — drop INSIDE `ingest_remote/`
 
 Stellar embeddings are not a separate wheel. The remote service ships its
 own `app/stellar_client.py` (a portable copy of the main backend's client)
 which in turn imports `get_llm.StellarGenAI` to handle the COIN OAuth token
-and the OpenAI-compatible httpx client. Copy `get_llm.py` from the project
-root into the `ingest_remote/` deployable (or set `STELLAR_GETLLM_PATH` to
-its full path).
+and the OpenAI-compatible httpx client.
 
-Discovery order for `get_llm.py`:
+**Place `get_llm.py` directly inside the `ingest_remote/` directory** —
+this makes the deployable self-contained (you can `scp -r ingest_remote/`
+to the VM and it has everything it needs):
 
-1. `$STELLAR_GETLLM_PATH` (when set)
-2. `ingest_remote/get_llm.py`
-3. `<repo-root>/get_llm.py` (handy when running from the retrieval repo)
+```text
+ingest_remote/
+├── get_llm.py            ← drop the file here
+├── app/
+│   ├── stellar_client.py
+│   ├── ingest_core.py
+│   └── …
+├── wheels/
+│   └── wega_chunker-*.whl
+└── …
+```
+
+The discovery order in `app/stellar_client.py` is:
+
+1. `$STELLAR_GETLLM_PATH` env var (when set)
+2. `ingest_remote/get_llm.py`  **← recommended**
+3. `<repo-root>/get_llm.py` (works in dev when running from the retrieval repo)
 
 The embedding model is locked to `gte-large-en-v1.5` inside `stellar_client.py`.
 
-`get_llm.py` is gitignored — copy it during deploy, don't commit it.
+`ingest_remote/get_llm.py` is committed to the repo (the COIN client_id / client_secret / scope inside it are base64-obfuscated and treated as project config rather than secrets — rotate them via Secret Manager if you need true secret hygiene later).
 
 ## Running locally
 
