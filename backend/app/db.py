@@ -152,19 +152,45 @@ async def ensure_schema_and_tables() -> dict:
             await conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
             logger.info("created schema %s", schema)
 
-        # 2. pgvector extension
-        ext = await conn.fetchval("SELECT 1 FROM pg_extension WHERE extname='vector'")
-        summary["pgvector_installed"] = bool(ext)
-        if not ext:
+        # 2. pgvector extension — and discover which schema it lives in
+        #    so we can put it on the connection's search_path. Otherwise
+        #    `vector(D)` references in DDL fail with "type vector does
+        #    not exist" when pgvector isn't in public.
+        ext_row = await conn.fetchrow(
+            """
+            SELECT nspname FROM pg_type t
+            JOIN pg_namespace n ON t.typnamespace = n.oid
+            WHERE t.typname = 'vector'
+            LIMIT 1
+            """
+        )
+        if not ext_row:
             try:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-                summary["pgvector_installed"] = True
                 logger.info("installed pgvector extension")
+                ext_row = await conn.fetchrow(
+                    "SELECT nspname FROM pg_type t "
+                    "JOIN pg_namespace n ON t.typnamespace = n.oid "
+                    "WHERE t.typname = 'vector' LIMIT 1"
+                )
             except Exception as exc:
                 logger.warning(
                     "pgvector extension install failed (run 'CREATE EXTENSION vector' "
                     "as superuser): %s", exc,
                 )
+        summary["pgvector_installed"] = bool(ext_row)
+        if ext_row:
+            ext_schema = ext_row["nspname"]
+            summary["pgvector_schema"] = ext_schema
+            # Prepend the pgvector schema to search_path for this connection
+            # so subsequent DDL (`vector(D)`) resolves.
+            try:
+                await conn.execute(
+                    f'SET search_path TO "{schema}", "{ext_schema}", public, pg_catalog'
+                )
+                logger.info("pgvector discovered in schema %s; search_path set", ext_schema)
+            except Exception as exc:
+                logger.warning("failed to add pgvector schema to search_path: %s", exc)
 
         # 3. chunk_embeddings table — only the narrow shape (migration 001/002
         #    add the rest of the columns via ALTER if needed)
@@ -213,6 +239,65 @@ async def ensure_schema_and_tables() -> dict:
                 except Exception as exc:
                     logger.warning("default embedding column add failed: %s", exc)
 
+        # 4. Defensive column adds — make sure soft-delete + FTS columns
+        #    exist on the chunk_embeddings table regardless of how / by
+        #    whom it was created (the original ingest.py creates the
+        #    table without these). Healthcheck + retrieval queries all
+        #    filter on `deleted_at IS NULL`, so a missing column wedges
+        #    the whole app.
+        added_cols: list[str] = []
+        if role:
+            try:
+                await conn.execute(f'SET ROLE "{role}"')
+            except Exception:
+                pass
+        # deleted_at — soft-delete marker
+        try:
+            has_deleted = await conn.fetchval(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = $1 AND table_name = $2 AND column_name = 'deleted_at'
+                """,
+                schema, table,
+            )
+            if not has_deleted:
+                await conn.execute(
+                    f'ALTER TABLE "{schema}"."{table}" ADD COLUMN deleted_at TIMESTAMPTZ'
+                )
+                await conn.execute(
+                    f'CREATE INDEX IF NOT EXISTS idx_chunk_active '
+                    f'ON "{schema}"."{table}" ("documentName") WHERE deleted_at IS NULL'
+                )
+                added_cols.append("deleted_at")
+                logger.info("added missing column deleted_at on %s.%s", schema, table)
+        except Exception as exc:
+            logger.warning("ensure deleted_at failed: %s", exc)
+        # content_tsv — generated tsvector for FTS / sparse retrieval
+        try:
+            has_tsv = await conn.fetchval(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = $1 AND table_name = $2 AND column_name = 'content_tsv'
+                """,
+                schema, table,
+            )
+            if not has_tsv:
+                await conn.execute(
+                    f'ALTER TABLE "{schema}"."{table}" '
+                    f"ADD COLUMN content_tsv tsvector "
+                    f"GENERATED ALWAYS AS (to_tsvector('english', COALESCE(content, ''))) STORED"
+                )
+                await conn.execute(
+                    f'CREATE INDEX IF NOT EXISTS idx_chunk_content_tsv '
+                    f'ON "{schema}"."{table}" USING GIN (content_tsv)'
+                )
+                added_cols.append("content_tsv")
+                logger.info("added missing column content_tsv on %s.%s", schema, table)
+        except Exception as exc:
+            logger.warning("ensure content_tsv failed: %s", exc)
+        if added_cols:
+            summary["columns_added"] = added_cols
+
     logger.info("schema/table bootstrap: %s", summary)
     return summary
 
@@ -247,29 +332,60 @@ async def run_migrations(sql_path: str) -> None:
 
 
 async def healthcheck() -> dict[str, Any]:
-    """Basic DB health + counts for the UI."""
+    """Basic DB health + counts for the UI.
+
+    Each query is wrapped in a try so a missing optional column
+    (e.g. `deleted_at` or the `chunk_context` table not yet created
+    on a freshly-deployed DB) doesn't fail the whole endpoint —
+    we just degrade gracefully and report what we can.
+    """
+    schema = settings.pg_schema
+    table = settings.pg_table
+
+    # Detect once whether deleted_at exists so we can short-circuit the
+    # WHERE clause when it doesn't (avoids per-query UndefinedColumnError).
     async with acquire() as conn:
-        chunk_count = await conn.fetchval(
-            f'SELECT COUNT(*) FROM "{settings.pg_schema}"."{settings.pg_table}" '
-            f'WHERE deleted_at IS NULL'
+        has_deleted = await conn.fetchval(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2 AND column_name = 'deleted_at'
+            """,
+            schema, table,
         )
-        doc_count = await conn.fetchval(
-            f'SELECT COUNT(DISTINCT "documentName") '
-            f'FROM "{settings.pg_schema}"."{settings.pg_table}" '
-            f'WHERE deleted_at IS NULL'
+        deleted_filter = "WHERE deleted_at IS NULL" if has_deleted else ""
+
+        async def _safe_fetchval(sql: str) -> int:
+            try:
+                v = await conn.fetchval(sql)
+                return int(v or 0)
+            except Exception as exc:
+                logger.warning("healthcheck sub-query failed (%s): %s", sql.split()[0], exc)
+                return 0
+
+        chunk_count = await _safe_fetchval(
+            f'SELECT COUNT(*) FROM "{schema}"."{table}" {deleted_filter}'
         )
-        ctx_count = await conn.fetchval(
-            f'SELECT COUNT(*) FROM "{settings.pg_schema}".chunk_context ctx '
-            f'JOIN "{settings.pg_schema}"."{settings.pg_table}" c ON c.id = ctx.chunk_id '
-            f'WHERE c.deleted_at IS NULL'
+        doc_count = await _safe_fetchval(
+            f'SELECT COUNT(DISTINCT "documentName") FROM "{schema}"."{table}" {deleted_filter}'
         )
-        dim = await discover_embedding_dim()
+        # chunk_context may not exist yet on a partially-bootstrapped DB
+        ctx_filter = "AND c.deleted_at IS NULL" if has_deleted else ""
+        ctx_count = await _safe_fetchval(
+            f'SELECT COUNT(*) FROM "{schema}".chunk_context ctx '
+            f'JOIN "{schema}"."{table}" c ON c.id = ctx.chunk_id '
+            f'WHERE 1=1 {ctx_filter}'
+        )
+        try:
+            dim = await discover_embedding_dim()
+        except Exception:
+            dim = 0
         return {
             "ok": True,
-            "chunks": int(chunk_count or 0),
-            "documents": int(doc_count or 0),
-            "contextual_chunks": int(ctx_count or 0),
+            "chunks": chunk_count,
+            "documents": doc_count,
+            "contextual_chunks": ctx_count,
             "embedding_dim": dim,
-            "schema": settings.pg_schema,
-            "table": settings.pg_table,
+            "schema": schema,
+            "table": table,
+            "soft_delete_enabled": bool(has_deleted),
         }

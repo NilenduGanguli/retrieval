@@ -50,6 +50,7 @@ application_default_credentials.json
 /llm_vertex.py
 /ingest.py
 /get_llm.py
+/connect.py
 /rag_streamlit.py
 !/docs/RAG_Framework_Documentation.pdf
 

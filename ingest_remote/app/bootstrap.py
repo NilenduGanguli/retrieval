@@ -75,6 +75,28 @@ ON "{schema}".chunk_embeddings
 USING hnsw (embedding vector_cosine_ops);
 """
 
+# Fallback DDL — same chunk_embeddings shape minus the `embedding`
+# column, used when pgvector isn't available on this DB. The column
+# can be added later with:
+#   ALTER TABLE "<schema>".chunk_embeddings ADD COLUMN embedding vector(D);
+CHUNK_EMBEDDINGS_DDL_NO_VECTOR = """
+CREATE TABLE IF NOT EXISTS "{schema}".chunk_embeddings (
+    id                BIGSERIAL PRIMARY KEY,
+    content           TEXT NOT NULL,
+    "chunkUUID"       TEXT UNIQUE,
+    "pageNumber"      INTEGER,
+    "tokenCount"      INTEGER,
+    "chunkType"       TEXT,
+    "chunkBoundingBox" JSONB,
+    "documentName"    TEXT,
+    "jobId"           TEXT,
+    content_tsv       tsvector
+                      GENERATED ALWAYS AS
+                      (to_tsvector('english', COALESCE(content, ''))) STORED,
+    deleted_at        TIMESTAMPTZ
+);
+"""
+
 DOCUMENTS_DDL = """
 CREATE TABLE IF NOT EXISTS "{schema}".documents (
     name          TEXT PRIMARY KEY,
@@ -140,22 +162,63 @@ def _ensure_schema(conn) -> bool:
         return True
 
 
-def _ensure_pgvector(conn) -> bool:
-    """Make sure the pgvector extension is installed."""
+def _ensure_pgvector(conn) -> str | None:
+    """Make sure the pgvector extension is installed AND on the search_path.
+
+    Returns the schema name where pgvector's `vector` type lives (or
+    None if pgvector still isn't usable after a CREATE attempt).
+
+    Why this matters: production DBs often have pgvector installed in a
+    schema that isn't on the connecting user's default search_path, so
+    a bare `vector(D)` reference in DDL fails with
+    `type "vector" does not exist`. We discover the schema, prepend it
+    to search_path for this session, and return it.
+    """
     with conn.cursor() as cur:
+        # 1. Try to find the vector type
         cur.execute(
-            "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
+            """
+            SELECT nspname FROM pg_type t
+            JOIN pg_namespace n ON t.typnamespace = n.oid
+            WHERE t.typname = 'vector'
+            LIMIT 1
+            """
         )
-        if cur.fetchone():
-            return True
-        try:
-            _maybe_set_role(cur)
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            logger.info("installed pgvector extension")
-            return True
-        except Exception as exc:
-            logger.warning("pgvector install failed (may need superuser): %s", exc)
-            return False
+        row = cur.fetchone()
+        if not row:
+            # Not installed — try to install (may fail without superuser)
+            try:
+                _maybe_set_role(cur)
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                logger.info("installed pgvector extension")
+            except Exception as exc:
+                logger.warning("pgvector install failed (may need superuser): %s", exc)
+                return None
+            # Re-query
+            cur.execute(
+                """
+                SELECT nspname FROM pg_type t
+                JOIN pg_namespace n ON t.typnamespace = n.oid
+                WHERE t.typname = 'vector'
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+            if not row:
+                logger.warning("pgvector still not visible after CREATE EXTENSION")
+                return None
+        ext_schema = row[0]
+        # 2. Make the type visible without a schema qualifier so the DDL
+        #    in this session can use `vector(D)` directly.
+        target_schema = _schema()
+        cur.execute(
+            f'SET search_path TO "{target_schema}", "{ext_schema}", public, pg_catalog;'
+        )
+        logger.info(
+            "pgvector found in schema %s; search_path = %s, %s, public, pg_catalog",
+            ext_schema, target_schema, ext_schema,
+        )
+        return ext_schema
 
 
 def _has_table(conn, name: str) -> bool:
@@ -170,28 +233,38 @@ def _has_table(conn, name: str) -> bool:
         return cur.fetchone() is not None
 
 
-def _ensure_tables(conn) -> dict[str, bool]:
+def _ensure_tables(conn, pgvector_schema: str | None) -> dict[str, bool]:
+    """Create the required tables. If pgvector is not usable, fall back
+    to creating chunk_embeddings WITHOUT the embedding column — the
+    table still serves retrieval lookups via FTS / contextual paths."""
     schema = _schema()
-    # Default to the embedding dim of the active provider's output. The
-    # remote service knows nothing about the dim ahead of time, so we
-    # use the widest commonly-deployed Vertex/Stellar default; the
-    # column can be re-created at higher dims by the main backend's
-    # smart-detect path if needed.
     emb_dim = 768
     state: dict[str, bool] = {}
     with conn.cursor() as cur:
         _maybe_set_role(cur)
         if not _has_table(conn, "chunk_embeddings"):
-            cur.execute(CHUNK_EMBEDDINGS_DDL.format(schema=schema, embedding_dim=emb_dim))
-            logger.info("created %s.chunk_embeddings (embedding vector(%d))", schema, emb_dim)
+            if pgvector_schema:
+                cur.execute(CHUNK_EMBEDDINGS_DDL.format(schema=schema, embedding_dim=emb_dim))
+                logger.info("created %s.chunk_embeddings (embedding vector(%d))", schema, emb_dim)
+            else:
+                # pgvector not available — create the narrow table without
+                # the embedding column; admins can add it later.
+                cur.execute(CHUNK_EMBEDDINGS_DDL_NO_VECTOR.format(schema=schema))
+                logger.info(
+                    "created %s.chunk_embeddings (no embedding column — "
+                    "pgvector unavailable; install + ALTER ADD COLUMN to enable dense retrieval)",
+                    schema,
+                )
             state["chunk_embeddings"] = True
         else:
-            # Table existed — make sure the embedding column is present.
-            try:
-                cur.execute(ENSURE_EMBEDDING_COL_SQL.format(schema=schema, embedding_dim=emb_dim))
-            except Exception as exc:
-                logger.warning("ensure_embedding_column failed (continuing): %s", exc)
             state["chunk_embeddings"] = False
+            # Existing table — only try to backfill the embedding column
+            # when pgvector is usable for *this* connection.
+            if pgvector_schema:
+                try:
+                    cur.execute(ENSURE_EMBEDDING_COL_SQL.format(schema=schema, embedding_dim=emb_dim))
+                except Exception as exc:
+                    logger.warning("ensure_embedding_column failed (continuing): %s", exc)
         if not _has_table(conn, "documents"):
             cur.execute(DOCUMENTS_DDL.format(schema=schema))
             logger.info("created %s.documents", schema)
@@ -203,11 +276,12 @@ def _ensure_tables(conn) -> dict[str, bool]:
                 cur.execute(ddl_tpl.format(schema=schema))
             except Exception as exc:
                 logger.warning("index DDL failed (continuing): %s", exc)
-        # HNSW index on embedding (needs pgvector — best-effort)
-        try:
-            cur.execute(EMBEDDING_HNSW_IDX_SQL.format(schema=schema))
-        except Exception as exc:
-            logger.warning("HNSW index DDL failed (continuing): %s", exc)
+        # HNSW index on embedding — only when pgvector is usable
+        if pgvector_schema:
+            try:
+                cur.execute(EMBEDDING_HNSW_IDX_SQL.format(schema=schema))
+            except Exception as exc:
+                logger.warning("HNSW index DDL failed (continuing): %s", exc)
     conn.commit()
     return state
 
@@ -228,8 +302,9 @@ def bootstrap_schema() -> dict[str, Any]:
         conn = _connect()
         conn.autocommit = True
         summary["schema_existed"] = _ensure_schema(conn)
-        _ensure_pgvector(conn)
-        summary["tables_created"] = _ensure_tables(conn)
+        pgv_schema = _ensure_pgvector(conn)
+        summary["pgvector_schema"] = pgv_schema
+        summary["tables_created"] = _ensure_tables(conn, pgv_schema)
         conn.close()
         summary["ok"] = True
         summary["schema"] = _schema()
