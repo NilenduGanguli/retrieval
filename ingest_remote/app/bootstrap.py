@@ -26,11 +26,15 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 
-# --- DDL (kept identical to backend/migrations + ingest_core wide-shape) ----
-SCHEMA_NAME = "vector"
+# --- DDL templates (schema name is interpolated at runtime from settings) ----
+# SCHEMA_NAME is read lazily via settings.pg_schema so any env override
+# (PG_SCHEMA=...) flows through to every CREATE/INSERT.
+def _schema() -> str:
+    return settings.pg_schema
+
 
 CHUNK_EMBEDDINGS_DDL = """
-CREATE TABLE IF NOT EXISTS vector.chunk_embeddings (
+CREATE TABLE IF NOT EXISTS "{schema}".chunk_embeddings (
     id                BIGSERIAL PRIMARY KEY,
     content           TEXT NOT NULL,
     "chunkUUID"       TEXT UNIQUE,
@@ -40,6 +44,7 @@ CREATE TABLE IF NOT EXISTS vector.chunk_embeddings (
     "chunkBoundingBox" JSONB,
     "documentName"    TEXT,
     "jobId"           TEXT,
+    embedding         vector({embedding_dim}),
     content_tsv       tsvector
                       GENERATED ALWAYS AS
                       (to_tsvector('english', COALESCE(content, ''))) STORED,
@@ -47,25 +52,48 @@ CREATE TABLE IF NOT EXISTS vector.chunk_embeddings (
 );
 """
 
+# Ensure the embedding column exists even when the table predates this
+# bootstrap (e.g. created by an old script without the column).
+ENSURE_EMBEDDING_COL_SQL = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = '{schema}'
+          AND table_name = 'chunk_embeddings'
+          AND column_name = 'embedding'
+    ) THEN
+        ALTER TABLE "{schema}".chunk_embeddings
+        ADD COLUMN embedding vector({embedding_dim});
+    END IF;
+END$$;
+"""
+
+EMBEDDING_HNSW_IDX_SQL = """
+CREATE INDEX IF NOT EXISTS chunk_embeddings_hnsw_idx
+ON "{schema}".chunk_embeddings
+USING hnsw (embedding vector_cosine_ops);
+"""
+
 DOCUMENTS_DDL = """
-CREATE TABLE IF NOT EXISTS vector.documents (
+CREATE TABLE IF NOT EXISTS "{schema}".documents (
     name          TEXT PRIMARY KEY,
     s3_uri        TEXT,
     size_bytes    BIGINT,
     content_type  TEXT,
     uploaded_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at    TIMESTAMPTZ,
-    extra         JSONB NOT NULL DEFAULT '{}'::jsonb
+    extra         JSONB NOT NULL DEFAULT '{{}}'::jsonb
 );
 """
 
-INDEXES_DDL = [
+INDEXES_DDL_TEMPLATES = [
     'CREATE INDEX IF NOT EXISTS idx_chunk_content_tsv '
-    'ON vector.chunk_embeddings USING GIN (content_tsv)',
+    'ON "{schema}".chunk_embeddings USING GIN (content_tsv)',
     'CREATE INDEX IF NOT EXISTS idx_chunk_active '
-    'ON vector.chunk_embeddings ("documentName") WHERE deleted_at IS NULL',
+    'ON "{schema}".chunk_embeddings ("documentName") WHERE deleted_at IS NULL',
     'CREATE INDEX IF NOT EXISTS idx_documents_active '
-    'ON vector.documents (uploaded_at DESC) WHERE deleted_at IS NULL',
+    'ON "{schema}".documents (uploaded_at DESC) WHERE deleted_at IS NULL',
 ]
 
 
@@ -91,17 +119,24 @@ def _maybe_set_role(cur: Any) -> None:
 
 
 def _ensure_schema(conn) -> bool:
-    """Returns True if schema exists (or was just created)."""
+    """Returns True if schema exists (or was just created).
+
+    Always SET ROLE before CREATE SCHEMA so the new schema lands under
+    the configured owner role (not the connecting user). The SET ROLE
+    runs even when the schema appears to exist — cheap and harmless.
+    """
+    schema = _schema()
     with conn.cursor() as cur:
         cur.execute(
             "SELECT 1 FROM information_schema.schemata WHERE schema_name = %s",
-            (SCHEMA_NAME,),
+            (schema,),
         )
         if cur.fetchone():
             return True
+        # Schema is missing — set role first, then create
         _maybe_set_role(cur)
-        cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA_NAME}";')
-        logger.info("created schema %s", SCHEMA_NAME)
+        cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}";')
+        logger.info("created schema %s", schema)
         return True
 
 
@@ -130,32 +165,49 @@ def _has_table(conn, name: str) -> bool:
             SELECT 1 FROM information_schema.tables
             WHERE table_schema = %s AND table_name = %s
             """,
-            (SCHEMA_NAME, name),
+            (_schema(), name),
         )
         return cur.fetchone() is not None
 
 
 def _ensure_tables(conn) -> dict[str, bool]:
+    schema = _schema()
+    # Default to the embedding dim of the active provider's output. The
+    # remote service knows nothing about the dim ahead of time, so we
+    # use the widest commonly-deployed Vertex/Stellar default; the
+    # column can be re-created at higher dims by the main backend's
+    # smart-detect path if needed.
+    emb_dim = 768
     state: dict[str, bool] = {}
     with conn.cursor() as cur:
         _maybe_set_role(cur)
         if not _has_table(conn, "chunk_embeddings"):
-            cur.execute(CHUNK_EMBEDDINGS_DDL)
-            logger.info("created %s.chunk_embeddings", SCHEMA_NAME)
+            cur.execute(CHUNK_EMBEDDINGS_DDL.format(schema=schema, embedding_dim=emb_dim))
+            logger.info("created %s.chunk_embeddings (embedding vector(%d))", schema, emb_dim)
             state["chunk_embeddings"] = True
         else:
+            # Table existed — make sure the embedding column is present.
+            try:
+                cur.execute(ENSURE_EMBEDDING_COL_SQL.format(schema=schema, embedding_dim=emb_dim))
+            except Exception as exc:
+                logger.warning("ensure_embedding_column failed (continuing): %s", exc)
             state["chunk_embeddings"] = False
         if not _has_table(conn, "documents"):
-            cur.execute(DOCUMENTS_DDL)
-            logger.info("created %s.documents", SCHEMA_NAME)
+            cur.execute(DOCUMENTS_DDL.format(schema=schema))
+            logger.info("created %s.documents", schema)
             state["documents"] = True
         else:
             state["documents"] = False
-        for ddl in INDEXES_DDL:
+        for ddl_tpl in INDEXES_DDL_TEMPLATES:
             try:
-                cur.execute(ddl)
+                cur.execute(ddl_tpl.format(schema=schema))
             except Exception as exc:
                 logger.warning("index DDL failed (continuing): %s", exc)
+        # HNSW index on embedding (needs pgvector — best-effort)
+        try:
+            cur.execute(EMBEDDING_HNSW_IDX_SQL.format(schema=schema))
+        except Exception as exc:
+            logger.warning("HNSW index DDL failed (continuing): %s", exc)
     conn.commit()
     return state
 
@@ -180,9 +232,10 @@ def bootstrap_schema() -> dict[str, Any]:
         summary["tables_created"] = _ensure_tables(conn)
         conn.close()
         summary["ok"] = True
+        summary["schema"] = _schema()
         logger.info(
             "schema bootstrap ok (schema=%s, tables_created=%s)",
-            SCHEMA_NAME, summary["tables_created"],
+            _schema(), summary["tables_created"],
         )
     except Exception as exc:
         summary["error"] = str(exc)

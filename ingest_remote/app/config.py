@@ -50,6 +50,7 @@ class RemoteIngestSettings(BaseSettings):
     pg_user: str = Field(default="kyc164283devpgaas")
     pg_password: str = Field(default="")
     pg_database: str = Field(default="chunker_db")
+    pg_schema: str = Field(default="vector_ng12499")
     pg_index: str = Field(default="chunk_embeddings")
     pg_app_owner_role: str = Field(default="citi_pg_app_owner")
 

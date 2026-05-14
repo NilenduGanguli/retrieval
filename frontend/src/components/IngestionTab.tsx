@@ -29,6 +29,8 @@ export default function IngestionTab({ health, onChange }: Props) {
   const [ctxLimit, setCtxLimit] = useState(100)
   const fileRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
+  const ctxPanelRef = useRef<HTMLDivElement>(null)
+  const [ctxHighlight, setCtxHighlight] = useState(false)
 
   async function loadDocs() {
     setRefreshing(true)
@@ -40,6 +42,20 @@ export default function IngestionTab({ health, onChange }: Props) {
     }
   }
   useEffect(() => { loadDocs() }, [])
+
+  // Top-bar contextualised badge dispatches `rag:focus-contextual` —
+  // scroll the panel into view + flash it briefly.
+  useEffect(() => {
+    const handler = () => {
+      requestAnimationFrame(() => {
+        ctxPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setCtxHighlight(true)
+        window.setTimeout(() => setCtxHighlight(false), 1500)
+      })
+    }
+    window.addEventListener('rag:focus-contextual', handler)
+    return () => window.removeEventListener('rag:focus-contextual', handler)
+  }, [])
 
   function uploadPdf(file: File, onComplete?: () => void) {
     setUploadProgress(0)
@@ -205,16 +221,23 @@ export default function IngestionTab({ health, onChange }: Props) {
         <div className="grid grid-cols-4 gap-3">
           <Stat label="Documents" value={health?.documents ?? '—'} />
           <Stat label="Chunks" value={(health?.chunks ?? 0).toLocaleString()} />
-          <Stat
-            label="Contextualised"
-            value={
-              health
-                ? `${health.contextual_chunks.toLocaleString()} (${
-                    health.chunks ? ((health.contextual_chunks / health.chunks) * 100).toFixed(0) : 0
-                  }%)`
-                : '—'
-            }
-          />
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('rag:focus-contextual'))}
+            title="Click to jump to the contextualisation panel"
+            className="text-left"
+          >
+            <Stat
+              label="Contextualised ↓"
+              value={
+                health
+                  ? `${health.contextual_chunks.toLocaleString()} (${
+                      health.chunks ? ((health.contextual_chunks / health.chunks) * 100).toFixed(0) : 0
+                    }%)`
+                  : '—'
+              }
+            />
+          </button>
           <Stat label="Embedding dim" value={health?.embedding_dim ?? '—'} />
         </div>
 
@@ -285,11 +308,27 @@ export default function IngestionTab({ health, onChange }: Props) {
         </div>
 
         {/* Contextual gen */}
-        <div className="card p-5">
+        <div
+          ref={ctxPanelRef}
+          className={cn(
+            'card p-5 transition',
+            ctxHighlight && 'ring-2 ring-accent shadow-glow',
+          )}
+        >
           <div className="flex items-center gap-2 mb-3">
             <Wand2 className="w-4 h-4 text-accent" />
-            <h2 className="font-medium text-sm">Generate Contextual Retrieval Prefixes</h2>
+            <h2 className="font-medium text-sm">
+              Contextualise chunks{' '}
+              <span className="text-citi-blue/70 font-normal">
+                (Anthropic Contextual Retrieval)
+              </span>
+            </h2>
             <span className="chip-accent ml-2">+49% recall lift</span>
+            {health && (
+              <span className="chip ml-auto tabular-nums">
+                {health.contextual_chunks}/{health.chunks} done
+              </span>
+            )}
           </div>
           <p className="text-xs text-citi-blue leading-relaxed mb-3">
             For each chunk, the LLM writes a ~50-100 token prefix that situates it inside the document, then we embed

@@ -185,7 +185,7 @@ def _open_target_conn():
         )
         row = cur.fetchone()
         ext_schema = row[0] if row else "public"
-        cur.execute(f"SET search_path TO vector, {ext_schema}, public, pg_catalog;")
+        cur.execute(f'SET search_path TO "{settings.pg_schema}", {ext_schema}, public, pg_catalog;')
         if not row:
             try:
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -204,9 +204,9 @@ def _detect_table_shape(conn, index_name: str) -> str:
         cur.execute(
             """
             SELECT column_name FROM information_schema.columns
-            WHERE table_schema='vector' AND table_name=%s
+            WHERE table_schema=%s AND table_name=%s
             """,
-            (index_name,),
+            (settings.pg_schema, index_name),
         )
         cols = {r[0] for r in cur.fetchall()}
     if not cols:
@@ -217,16 +217,21 @@ def _detect_table_shape(conn, index_name: str) -> str:
 
 
 def _ensure_table_wide(conn, index_name: str, embedding_dim: int) -> None:
-    """Create the WEGA-shape table when running against a fresh DB."""
+    """Create the WEGA-shape table when running against a fresh DB.
+
+    SET ROLE first (when configured) so the new schema + table land under
+    the right owner; then CREATE SCHEMA IF NOT EXISTS.
+    """
     with conn.cursor() as cur:
-        try:
-            cur.execute(f"SET ROLE {settings.pg_app_owner_role};")
-        except Exception:
-            pass
-        cur.execute("CREATE SCHEMA IF NOT EXISTS vector;")
+        if settings.pg_app_owner_role:
+            try:
+                cur.execute(f"SET ROLE {settings.pg_app_owner_role};")
+            except Exception:
+                pass
+        cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{settings.pg_schema}";')
         cur.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS vector.{index_name} (
+            CREATE TABLE IF NOT EXISTS "{settings.pg_schema}".{index_name} (
                 id                TEXT PRIMARY KEY,
                 "documentClass"   TEXT,
                 title             TEXT,
@@ -249,7 +254,7 @@ def _ensure_table_wide(conn, index_name: str, embedding_dim: int) -> None:
         cur.execute(
             f"""
             CREATE INDEX IF NOT EXISTS {index_name}_hnsw_idx
-            ON vector.{index_name}
+            ON "{settings.pg_schema}".{index_name}
             USING hnsw (embedding vector_cosine_ops)
             """
         )
@@ -355,7 +360,7 @@ async def ingest_pdf_local(
                 if shape == "wide":
                     cur.execute(
                         f"""
-                        INSERT INTO vector.{index_name}
+                        INSERT INTO "{settings.pg_schema}".{index_name}
                             (id, "documentClass", title, "sectionHeading", content,
                              "partNumber", "totalPartNumber", "chunkUUID", "pageNumber",
                              "tokenCount", "chunkType", "chunkBoundingBox",
@@ -383,7 +388,7 @@ async def ingest_pdf_local(
                 else:  # narrow — the main backend's migration shape
                     cur.execute(
                         f"""
-                        INSERT INTO vector.{index_name}
+                        INSERT INTO "{settings.pg_schema}".{index_name}
                             (content, "chunkUUID", "pageNumber", "tokenCount", "chunkType",
                              "documentName", "jobId", embedding)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -402,7 +407,7 @@ async def ingest_pdf_local(
                     )
                 inserted += 1
             conn.commit()
-            cur.execute(f"SELECT COUNT(*) FROM vector.{index_name}")
+            cur.execute(f'SELECT COUNT(*) FROM "{settings.pg_schema}".{index_name}')
             total_rows = cur.fetchone()[0]
         conn.close()
         return {"inserted": inserted, "total_rows": total_rows, "shape": shape}

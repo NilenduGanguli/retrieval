@@ -44,6 +44,14 @@ export default function App() {
     }
   }, [])
 
+  // Top-bar "contextualised" badge fires this event when clicked — switch
+  // to the Ingestion tab so the user lands on the trigger panel.
+  useEffect(() => {
+    const handler = () => setTab('ingestion')
+    window.addEventListener('rag:focus-contextual', handler)
+    return () => window.removeEventListener('rag:focus-contextual', handler)
+  }, [])
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header — white surface with strong Citi-blue accent band */}
@@ -135,15 +143,40 @@ export default function App() {
 
 function HealthBadge({ health }: { health: HealthInfo | null }) {
   if (!health) return <span className="chip">disconnected</span>
+  const pct = health.chunks > 0
+    ? Math.round((health.contextual_chunks / health.chunks) * 100)
+    : 0
+  const fullyDone = health.chunks > 0 && health.contextual_chunks === health.chunks
   return (
     <>
       <span className="chip-success">
         <Activity className="w-3 h-3" />
         live
       </span>
-      <span className="chip">
+      <button
+        type="button"
+        onClick={() => {
+          // Jump to the Ingestion tab and scroll to the contextualisation panel.
+          // The custom event handler in IngestionTab listens for `rag:focus-contextual`.
+          window.dispatchEvent(new CustomEvent('rag:focus-contextual'))
+        }}
+        title={
+          fullyDone
+            ? 'All chunks contextualised'
+            : `Click to run Anthropic Contextual Retrieval on the remaining ${
+                health.chunks - health.contextual_chunks
+              } chunks`
+        }
+        className={cn(
+          'chip transition hover:border-accent hover:text-accent-dark hover:shadow-glow cursor-pointer',
+          fullyDone && 'border-emerald-600 text-emerald-800 bg-emerald-500/15',
+        )}
+      >
         {health.contextual_chunks}/{health.chunks} contextualised
-      </span>
+        {!fullyDone && health.chunks > 0 && (
+          <span className="ml-1 text-[10px] opacity-80">({pct}%)</span>
+        )}
+      </button>
     </>
   )
 }

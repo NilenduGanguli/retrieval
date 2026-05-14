@@ -47,10 +47,11 @@ def _ensure_database(cfg: dict) -> None:
     conn = _connect(cfg, dbname="postgres")
     conn.autocommit = True
     with conn.cursor() as cur:
-        try:
-            cur.execute("SET ROLE citi_pg_app_owner;")
-        except Exception as role_err:  # pragma: no cover - role-only env
-            logger.warning("could not SET ROLE citi_pg_app_owner: %s", role_err)
+        if settings.pg_app_owner_role:
+            try:
+                cur.execute(f"SET ROLE {settings.pg_app_owner_role};")
+            except Exception as role_err:  # pragma: no cover - role-only env
+                logger.warning("could not SET ROLE %s: %s", settings.pg_app_owner_role, role_err)
         cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (cfg["pg_database"],))
         if not cur.fetchone():
             cur.execute(f'CREATE DATABASE "{cfg["pg_database"]}"')
@@ -79,21 +80,25 @@ def _get_connection(cfg: dict):
         )
         row = cur.fetchone()
         ext_schema = row[0] if row else "public"
-        cur.execute(f"SET search_path TO vector, {ext_schema}, public, pg_catalog;")
+        cur.execute(f'SET search_path TO "{settings.pg_schema}", {ext_schema}, public, pg_catalog;')
     register_vector(conn)
     return conn
 
 
 def _create_table(conn, index_name: str, embedding_dim: int) -> None:
     with conn.cursor() as cur:
-        try:
-            cur.execute("SET ROLE citi_pg_app_owner;")
-        except Exception:
-            pass
-        cur.execute("CREATE SCHEMA IF NOT EXISTS vector;")
+        # SET ROLE before any CREATE so the new objects land under the
+        # configured owner role (when one is set). Then CREATE SCHEMA so
+        # the table+index DDL below can rely on the schema existing.
+        if settings.pg_app_owner_role:
+            try:
+                cur.execute(f"SET ROLE {settings.pg_app_owner_role};")
+            except Exception:
+                pass
+        cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{settings.pg_schema}";')
         cur.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS vector.{index_name} (
+            CREATE TABLE IF NOT EXISTS "{settings.pg_schema}".{index_name} (
                 id                TEXT PRIMARY KEY,
                 "documentClass"   TEXT,
                 title             TEXT,
@@ -114,13 +119,13 @@ def _create_table(conn, index_name: str, embedding_dim: int) -> None:
             """
         )
         cur.execute(
-            f"""
+            """
             SELECT atttypmod FROM pg_attribute
             JOIN pg_class ON attrelid = pg_class.oid
             JOIN pg_namespace ON relnamespace = pg_namespace.oid
-            WHERE nspname = 'vector' AND relname = %s AND attname = 'embedding';
+            WHERE nspname = %s AND relname = %s AND attname = 'embedding';
             """,
-            (index_name,),
+            (settings.pg_schema, index_name),
         )
         dim_row = cur.fetchone()
         if dim_row and dim_row[0] != embedding_dim:
@@ -129,13 +134,13 @@ def _create_table(conn, index_name: str, embedding_dim: int) -> None:
                 dim_row[0],
                 embedding_dim,
             )
-            cur.execute(f"DROP TABLE IF EXISTS vector.{index_name} CASCADE;")
+            cur.execute(f'DROP TABLE IF EXISTS "{settings.pg_schema}".{index_name} CASCADE;')
             _create_table(conn, index_name, embedding_dim)
             return
         cur.execute(
             f"""
             CREATE INDEX IF NOT EXISTS {index_name}_hnsw_idx
-            ON vector.{index_name}
+            ON "{settings.pg_schema}".{index_name}
             USING hnsw (embedding vector_cosine_ops)
             """
         )
@@ -297,7 +302,7 @@ async def ingest_pdf(
                     bbox = [float(v) for v in bbox]
                 cur.execute(
                     f"""
-                    INSERT INTO vector.{index_name}
+                    INSERT INTO "{settings.pg_schema}".{index_name}
                         (id, "documentClass", title, "sectionHeading", content,
                          "partNumber", "totalPartNumber", "chunkUUID", "pageNumber",
                          "tokenCount", "chunkType", "chunkBoundingBox",
@@ -327,7 +332,7 @@ async def ingest_pdf(
                 )
                 inserted += 1
             conn.commit()
-            cur.execute(f"SELECT COUNT(*) FROM vector.{index_name}")
+            cur.execute(f'SELECT COUNT(*) FROM "{settings.pg_schema}".{index_name}')
             total_rows = cur.fetchone()[0]
         conn.close()
         return {"inserted": inserted, "total_rows": total_rows}

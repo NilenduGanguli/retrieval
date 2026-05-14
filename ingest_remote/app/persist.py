@@ -31,7 +31,7 @@ def _connect():
 
 
 async def persist_source(pdf_path: str, document_name: str) -> str | None:
-    """Upload the source PDF to S3 + UPSERT the vector.documents row.
+    """Upload the source PDF to S3 + UPSERT the {settings.pg_schema}.documents row.
 
     Returns the s3:// URI on success, None when S3 is disabled or a
     non-fatal failure happened.
@@ -57,8 +57,8 @@ async def persist_source(pdf_path: str, document_name: str) -> str | None:
                 except Exception:
                     pass
             cur.execute(
-                """
-                INSERT INTO vector.documents
+                f"""
+                INSERT INTO "{settings.pg_schema}".documents
                   (name, s3_uri, size_bytes, content_type, uploaded_at)
                 VALUES (%s, %s, %s, %s, now())
                 ON CONFLICT (name) DO UPDATE SET

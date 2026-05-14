@@ -218,12 +218,32 @@ async def ensure_schema_and_tables() -> dict:
 
 
 async def run_migrations(sql_path: str) -> None:
-    """Apply a SQL migration file."""
+    """Apply a SQL migration file.
+
+    Migrations are checked into the repo with `vector.` as a sentinel
+    schema name. At runtime we substitute it with the configured
+    `settings.pg_schema` so a single set of migration files works against
+    any schema (e.g. `vector_ng12499`).
+    """
     with open(sql_path, "r", encoding="utf-8") as f:
         sql = f.read()
+    schema = settings.pg_schema
+    if schema != "vector":
+        # Replace standalone `vector.` and `'vector'` literals. The
+        # migrations only ever use these to refer to the target schema —
+        # they don't reference the pgvector extension's `vector` type
+        # qualifier (which would look like `vector(D)` with parens).
+        import re
+        sql = re.sub(r"\bvector\.(?=[a-zA-Z_])", f'"{schema}".', sql)
+        # Any literal 'vector' (used as a schema-name string in
+        # information_schema lookups) → the configured schema.
+        sql = re.sub(r"'vector'", f"'{schema}'", sql)
+        # SET search_path TO vector, ...  →  SET search_path TO "<schema>", ...
+        sql = re.sub(r"(SET\s+search_path\s+TO\s+)vector\b",
+                     rf'\1"{schema}"', sql, flags=re.IGNORECASE)
     async with acquire() as conn:
         await conn.execute(sql)
-    logger.info("Applied migration: %s", sql_path)
+    logger.info("Applied migration: %s (schema=%s)", sql_path, schema)
 
 
 async def healthcheck() -> dict[str, Any]:

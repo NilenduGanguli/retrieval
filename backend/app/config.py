@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     pg_user: str = Field(default="")
     pg_password: str = Field(default="")
     pg_database: str = Field(default="chunker_db")
-    pg_schema: str = Field(default="vector")
+    pg_schema: str = Field(default="vector_ng12499")
     pg_table: str = Field(default="chunk_embeddings")
     app_owner_role: str = Field(default="")
 
