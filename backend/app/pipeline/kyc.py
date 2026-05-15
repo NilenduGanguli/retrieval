@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from ..config import settings
-from ..db import acquire, vec_to_pg, vector_type
+from ..db import acquire, vec_to_pg
 from ..s3_store import s3_put
 from ..stellar_client import get_stellar, model_for
 from .ocr_azure import extract_pages
@@ -647,7 +647,7 @@ async def ingest_kyc_pdf(
                 f"""
                 INSERT INTO "{schema}".kyc_chunks
                     (kyc_document_id, chunk_index, content, token_count, embedding)
-                VALUES ($1, $2, $3, $4, $5::{vector_type()})
+                VALUES ($1, $2, $3, $4, $5::vector)
                 """,
                 kyc_doc_id, idx, content, token_count, vec_to_pg(vec),
             )
@@ -705,7 +705,7 @@ async def ensure_kyc_embedding_column() -> None:
             except Exception:
                 pass
         await conn.execute(
-            f'ALTER TABLE "{schema}".kyc_chunks ADD COLUMN embedding {vector_type()}({dim})'
+            f'ALTER TABLE "{schema}".kyc_chunks ADD COLUMN embedding vector({dim})'
         )
         await conn.execute(
             f'CREATE INDEX IF NOT EXISTS idx_kyc_chunks_hnsw '
@@ -813,7 +813,7 @@ async def extract_for_owner_type(owner: str, doc_type: str) -> dict[str, Any] | 
 
     # KNN over kyc_chunks restricted by owner+type via JOIN to kyc_documents
     sql = (
-        f'WITH q AS (SELECT $1::{vector_type()} AS v) '
+        f'WITH q AS (SELECT $1::vector AS v) '
         f'SELECT c.id AS chunk_id, c.content, c.page_number, '
         f'       d.id AS kyc_document_id, d.document_name, d.owner, '
         f'       d.document_type, d.document_category, d.confidence_score, '
@@ -950,7 +950,7 @@ async def universal_search(keyword: str, top_k: int = 8) -> list[dict[str, Any]]
     async with acquire() as conn:
         vec_rows = await conn.fetch(
             f"""
-            WITH q AS (SELECT $1::{vector_type()} AS v)
+            WITH q AS (SELECT $1::vector AS v)
             SELECT c.id AS chunk_id, c.content, c.page_number,
                    d.id AS kyc_document_id, d.document_name, d.owner,
                    d.document_type, d.document_category, d.confidence_score,

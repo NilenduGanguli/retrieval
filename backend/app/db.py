@@ -26,21 +26,6 @@ def vec_to_pg(vec: list[float]) -> str:
     return "[" + ",".join(f"{x:.7g}" for x in vec) + "]"
 
 
-def vector_type() -> str:
-    """Return the SQL type identifier for pgvector's `vector` type,
-    schema-qualified when pgvector isn't in `public`.
-
-    Use in f-strings like:  ... $1::{vector_type()} ...
-    This avoids relying on the connection's search_path being correct
-    at PREPARE time, which is what trips ``UndefinedObjectError: type
-    "vector" does not exist`` on connections where the pool init
-    didn't manage to discover the schema in time.
-    """
-    if _pgvector_schema and _pgvector_schema != "public":
-        return f'"{_pgvector_schema}".vector'
-    return "vector"
-
-
 async def _discover_pgvector_schema(conn: asyncpg.Connection) -> str | None:
     """Return the schema where pgvector's `vector` type is registered."""
     row = await conn.fetchrow(
@@ -109,6 +94,15 @@ async def close_pool() -> None:
 async def acquire() -> AsyncIterator[asyncpg.Connection]:
     pool = await init_pool()
     async with pool.acquire() as conn:
+        # Re-apply search_path if pgvector schema was discovered after this
+        # connection was first initialised (pool race condition where conns
+        # created at min_size pre-warm pre-date ensure_schema_and_tables).
+        if _pgvector_schema:
+            parts: list[str] = [f'"{settings.pg_schema}"']
+            if _pgvector_schema not in ("public", settings.pg_schema):
+                parts.append(f'"{_pgvector_schema}"')
+            parts.append("public")
+            await conn.execute("SET search_path TO " + ", ".join(parts))
         yield conn
 
 
@@ -179,22 +173,6 @@ async def ensure_contextual_embedding_column() -> None:
         )
         if exists:
             return
-        # The connection acquired from the pool may have been created
-        # before _pgvector_schema was discovered. Force the search_path
-        # locally so `vector(D)` resolves.
-        global _pgvector_schema
-        if _pgvector_schema is None:
-            try:
-                _pgvector_schema = await _discover_pgvector_schema(conn)
-            except Exception:
-                _pgvector_schema = None
-        if _pgvector_schema and _pgvector_schema not in ("public", schema):
-            try:
-                await conn.execute(
-                    f'SET search_path TO "{schema}", "{_pgvector_schema}", public, pg_catalog'
-                )
-            except Exception as exc:
-                logger.warning("failed to extend search_path with pgvector schema: %s", exc)
         role_set = False
         if role:
             try:
@@ -205,7 +183,7 @@ async def ensure_contextual_embedding_column() -> None:
         try:
             await conn.execute(
                 f'ALTER TABLE "{schema}".chunk_context '
-                f"ADD COLUMN context_embedding {vector_type()}({dim})"
+                f"ADD COLUMN context_embedding vector({dim})"
             )
             await conn.execute(
                 f'CREATE INDEX IF NOT EXISTS idx_chunk_context_embedding_hnsw '
@@ -338,7 +316,7 @@ async def ensure_schema_and_tables() -> dict:
                 try:
                     await conn.execute(
                         f'ALTER TABLE "{schema}"."{table}" '
-                        f'ADD COLUMN IF NOT EXISTS embedding {vector_type()}(768)'
+                        f'ADD COLUMN IF NOT EXISTS embedding vector(768)'
                     )
                     await conn.execute(
                         f'CREATE INDEX IF NOT EXISTS {table}_hnsw_idx '
