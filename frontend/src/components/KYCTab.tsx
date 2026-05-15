@@ -126,6 +126,10 @@ export default function KYCTab() {
   const [keyword, setKeyword] = useState('')
   const [uResults, setUResults] = useState<any[] | null>(null)
 
+  // Search errors (surfaced in UI so silent failures don't masquerade as "no data")
+  const [listError, setListError] = useState<string | null>(null)
+  const [uError, setUError] = useState<string | null>(null)
+
   // Browser state
   const [browseCategory, setBrowseCategory] = useState('All Categories')
   const [browseGroups, setBrowseGroups] = useState<Array<{ owner: string; docs: any[] }>>([])
@@ -255,10 +259,14 @@ export default function KYCTab() {
     setSearching(true)
     setListResults(null)
     setExtractResult(null)
+    setListError(null)
     try {
       const r = await api.kycListByOwner(o, docTypeFilter || undefined)
-      setListResults(r.results || [])
+      console.debug('[kyc] list-by-owner response', r)
+      setListResults(Array.isArray(r?.results) ? r.results : [])
     } catch (e) {
+      console.error('[kyc] list-by-owner failed', e)
+      setListError(String(e))
       setListResults([])
     } finally {
       setSearching(false)
@@ -271,10 +279,13 @@ export default function KYCTab() {
     setSearching(true)
     setListResults(null)
     setExtractResult(null)
+    setListError(null)
     try {
       const r = await api.kycExtract(o, docTypeFilter)
+      console.debug('[kyc] extract response', r)
       setExtractResult(r.result || { _empty: true })
     } catch (e) {
+      console.error('[kyc] extract failed', e)
       setExtractResult({ _error: String(e) })
     } finally {
       setSearching(false)
@@ -286,9 +297,15 @@ export default function KYCTab() {
     if (!keyword.trim()) return
     setSearching(true)
     setUResults(null)
+    setUError(null)
     try {
       const r = await api.kycUniversal(keyword.trim(), 8)
-      setUResults(r.results || [])
+      console.debug('[kyc] universal-search response', r)
+      setUResults(Array.isArray(r?.results) ? r.results : [])
+    } catch (e) {
+      console.error('[kyc] universal-search failed', e)
+      setUError(String(e))
+      setUResults([])
     } finally {
       setSearching(false)
     }
@@ -489,6 +506,12 @@ export default function KYCTab() {
               {searching && <Loader2 className="w-4 h-4 animate-spin text-accent self-center" />}
             </div>
 
+            {listError && (
+              <div className="text-xs text-red-700 bg-red-500/10 border border-red-300 rounded-md p-2 break-all">
+                <strong>Error:</strong> {listError}
+              </div>
+            )}
+
             {/* LIST results */}
             {listResults !== null && (
               <div className="space-y-2">
@@ -552,6 +575,12 @@ export default function KYCTab() {
             <div className="text-[10px] text-citi-blue/80">
               💡 Try: PAN · phone · street address · account number · registration ID · email · any keyword
             </div>
+
+            {uError && (
+              <div className="text-xs text-red-700 bg-red-500/10 border border-red-300 rounded-md p-2 break-all">
+                <strong>Error:</strong> {uError}
+              </div>
+            )}
 
             {uResults !== null && (
               <div className="space-y-2">

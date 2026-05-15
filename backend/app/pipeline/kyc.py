@@ -794,6 +794,10 @@ async def list_by_owner(owner: str, doc_type: str | None = None) -> list[dict[st
     sql += "ORDER BY created_at DESC"
     async with acquire() as conn:
         rows = await conn.fetch(sql, *args)
+    logger.info(
+        "kyc.list_by_owner owner=%r norm=%r first=%r doc_type=%r → %d rows",
+        owner, norm, first, doc_type, len(rows),
+    )
     return [dict(r) for r in rows]
 
 
@@ -831,6 +835,10 @@ async def extract_for_owner_type(owner: str, doc_type: str) -> dict[str, Any] | 
     args = [vec_to_pg(q_vec), norm, first, f"%{first}%", f"%{owner}%", doc_type]
     async with acquire() as conn:
         rows = await conn.fetch(sql, *args)
+    logger.info(
+        "kyc.extract owner=%r norm=%r first=%r doc_type=%r → %d chunk rows",
+        owner, norm, first, doc_type, len(rows),
+    )
     if not rows:
         return None
 
@@ -852,11 +860,17 @@ async def extract_for_owner_type(owner: str, doc_type: str) -> dict[str, Any] | 
         if len(context) >= 3:
             break
 
-    llm_raw = await _chat_simple(
-        build_retrieval_prompt(query_str, context, doc_type),
-        max_tokens=2048,
-    )
-    parsed = extract_json_from_response(llm_raw) or {}
+    # LLM extraction is best-effort — if it fails, still return the top match
+    # with stored extracted_data so the user sees something useful.
+    parsed: dict[str, Any] = {}
+    try:
+        llm_raw = await _chat_simple(
+            build_retrieval_prompt(query_str, context, doc_type),
+            max_tokens=2048,
+        )
+        parsed = extract_json_from_response(llm_raw) or {}
+    except Exception:
+        logger.exception("kyc.extract LLM pass failed — falling back to stored extraction")
 
     # Top match's own extracted_data is a great companion
     top = rows[0]
@@ -909,6 +923,7 @@ async def universal_search(keyword: str, top_k: int = 8) -> list[dict[str, Any]]
             """,
             f"%{kw}%",
         )
+    logger.info("kyc.universal step1 metadata keyword=%r → %d hits", kw, len(meta_hits))
     for r in meta_hits:
         if r["id"] in seen_docs:
             continue
@@ -944,26 +959,32 @@ async def universal_search(keyword: str, top_k: int = 8) -> list[dict[str, Any]]
             "match_source": "metadata",
         })
 
-    # Step 2 — Vector search over content (top_k) and exclude already-found docs
-    client = get_stellar()
-    q_vec = await client.embed_one(kw)
-    async with acquire() as conn:
-        vec_rows = await conn.fetch(
-            f"""
-            WITH q AS (SELECT $1::vector AS v)
-            SELECT c.id AS chunk_id, c.content, c.page_number,
-                   d.id AS kyc_document_id, d.document_name, d.owner,
-                   d.document_type, d.document_category, d.confidence_score,
-                   d.source_platform, d.report_date, d.s3_uri,
-                   1 - (c.embedding <=> q.v) AS score
-            FROM "{schema}".kyc_chunks c
-            JOIN "{schema}".kyc_documents d ON d.id = c.kyc_document_id, q
-            WHERE c.deleted_at IS NULL AND d.deleted_at IS NULL
-            ORDER BY c.embedding <=> q.v
-            LIMIT $2
-            """,
-            vec_to_pg(q_vec), top_k,
-        )
+    # Step 2 — Vector search over content (top_k) and exclude already-found docs.
+    # Best-effort: an embed/SQL failure here mustn't lose the metadata hits.
+    vec_rows: list[Any] = []
+    try:
+        client = get_stellar()
+        q_vec = await client.embed_one(kw)
+        async with acquire() as conn:
+            vec_rows = await conn.fetch(
+                f"""
+                WITH q AS (SELECT $1::vector AS v)
+                SELECT c.id AS chunk_id, c.content, c.page_number,
+                       d.id AS kyc_document_id, d.document_name, d.owner,
+                       d.document_type, d.document_category, d.confidence_score,
+                       d.source_platform, d.report_date, d.s3_uri,
+                       1 - (c.embedding <=> q.v) AS score
+                FROM "{schema}".kyc_chunks c
+                JOIN "{schema}".kyc_documents d ON d.id = c.kyc_document_id, q
+                WHERE c.deleted_at IS NULL AND d.deleted_at IS NULL
+                ORDER BY c.embedding <=> q.v
+                LIMIT $2
+                """,
+                vec_to_pg(q_vec), top_k,
+            )
+    except Exception:
+        logger.exception("kyc.universal step2 vector search failed — skipping vector pass")
+    logger.info("kyc.universal step2 vector keyword=%r → %d chunks", kw, len(vec_rows))
 
     # Step 3 — LLM confirmation pass on vector candidates not already metadata-matched
     llm_context: list[dict[str, Any]] = []
@@ -983,12 +1004,39 @@ async def universal_search(keyword: str, top_k: int = 8) -> list[dict[str, Any]]
             break
 
     if llm_context:
-        llm_raw = await _chat_simple(
-            build_universal_search_prompt(kw, llm_context),
-            max_tokens=2048,
-        )
-        parsed = extract_json_from_response(llm_raw) or {}
-        for r in parsed.get("results", []) or []:
+        try:
+            llm_raw = await _chat_simple(
+                build_universal_search_prompt(kw, llm_context),
+                max_tokens=2048,
+            )
+            parsed = extract_json_from_response(llm_raw) or {}
+        except Exception:
+            logger.exception("kyc.universal step3 LLM pass failed — keeping vector candidates as fallback")
+            parsed = {}
+        llm_results = parsed.get("results", []) or []
+        if not llm_results and llm_context:
+            # LLM gave nothing usable — fall back to surfacing the top vector candidates
+            # so the user at least sees the semantically-relevant docs.
+            for cand in llm_context:
+                if cand["kyc_document_id"] in seen_docs:
+                    continue
+                seen_docs.add(cand["kyc_document_id"])
+                results.append({
+                    "kyc_document_id": cand["kyc_document_id"],
+                    "owner": cand.get("owner") or "",
+                    "document_name": cand.get("document_name", ""),
+                    "document_type": cand.get("document_type", ""),
+                    "document_category": cand.get("document_category", ""),
+                    "confidence_score": None,
+                    "source_platform": cand.get("source_platform", ""),
+                    "report_date": "",
+                    "s3_uri": None,
+                    "matched_field": "content",
+                    "matched_value": (cand.get("content") or "")[:240],
+                    "relevance_score": 0.5,
+                    "match_source": "vector",
+                })
+        for r in llm_results:
             rel = float(r.get("relevance_score", 0) or 0)
             if rel < 0.3:
                 continue
@@ -1017,6 +1065,7 @@ async def universal_search(keyword: str, top_k: int = 8) -> list[dict[str, Any]]
             })
 
     results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+    logger.info("kyc.universal final keyword=%r → %d results", kw, len(results))
     return results
 
 
