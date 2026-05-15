@@ -78,6 +78,16 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_use_ssl: bool = False
 
+    # ---------- KYC Intelligence ----------
+    # Azure Document Intelligence (used for KYC OCR; pypdf fallback handles
+    # local dev when these are empty).
+    azure_di_endpoint: str = Field(default="")
+    azure_di_key: str = Field(default="")
+
+    # Char chunker tuning for KYC ingestion (per rag_streamlit.py defaults).
+    kyc_chunk_size: int = Field(default=1200)
+    kyc_chunk_overlap: int = Field(default=200)
+
     # ---------- Server ----------
     app_host: str = "0.0.0.0"
     app_port: int = 8080

@@ -20,7 +20,7 @@ from .db import (
     init_pool,
     run_migrations,
 )
-from .routers import analytics, bench, documents, ingest, retrieve
+from .routers import analytics, bench, documents, ingest, kyc, retrieve
 
 logging.basicConfig(
     level=getattr(logging, settings.app_log_level.upper(), logging.INFO),
@@ -46,8 +46,13 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.exception("migration failed: %s", sql_file)
                 raise
-        # 3. Add the runtime-dim vector column for contextual retrieval
+        # 3. Add the runtime-dim vector columns for contextual + KYC chunks
         await ensure_contextual_embedding_column()
+        try:
+            from .pipeline.kyc import ensure_kyc_embedding_column
+            await ensure_kyc_embedding_column()
+        except Exception:
+            logger.exception("kyc embedding column bootstrap failed (continuing)")
         app.state.db_ready = True
         logger.info("ready (DB connected)")
     except Exception as exc:
@@ -131,6 +136,7 @@ app.include_router(ingest.router)
 app.include_router(documents.router)
 app.include_router(analytics.router)
 app.include_router(bench.router)
+app.include_router(kyc.router)
 
 
 # ----------------------------------------------------------------------------

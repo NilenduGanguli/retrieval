@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..config import settings
-from ..db import acquire, vec_to_pg
+from ..db import acquire, vec_to_pg, vector_type
 
 
 @dataclass
@@ -51,9 +51,9 @@ async def dense_search(
             )
             SELECT
                 id, content, document_name, page_number, context_text,
-                1 - (effective_embedding <=> $1::vector) AS score
+                1 - (effective_embedding <=> $1::{vector_type()}) AS score
             FROM joined
-            ORDER BY effective_embedding <=> $1::vector
+            ORDER BY effective_embedding <=> $1::{vector_type()}
             LIMIT $2
         """
     else:
@@ -64,10 +64,10 @@ async def dense_search(
                 c."documentName" AS document_name,
                 c."pageNumber"   AS page_number,
                 NULL::text       AS context_text,
-                1 - (c.embedding <=> $1::vector) AS score
+                1 - (c.embedding <=> $1::{vector_type()}) AS score
             FROM "{schema}"."{table}" c
             WHERE c.deleted_at IS NULL
-            ORDER BY c.embedding <=> $1::vector
+            ORDER BY c.embedding <=> $1::{vector_type()}
             LIMIT $2
         """
 

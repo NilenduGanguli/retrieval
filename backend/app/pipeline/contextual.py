@@ -19,7 +19,7 @@ import logging
 from dataclasses import dataclass
 
 from ..config import settings
-from ..db import acquire, vec_to_pg
+from ..db import acquire, vec_to_pg, vector_type
 from ..stellar_client import get_stellar, model_for
 
 logger = logging.getLogger(__name__)
@@ -142,7 +142,7 @@ async def _persist_context(
             f"""
             INSERT INTO "{schema}".chunk_context
                 (chunk_id, context_text, context_embedding, generator_model, generated_at)
-            VALUES ($1, $2, $3::vector, $4, now())
+            VALUES ($1, $2, $3::{vector_type()}, $4, now())
             ON CONFLICT (chunk_id) DO UPDATE
                 SET context_text = EXCLUDED.context_text,
                     context_embedding = EXCLUDED.context_embedding,

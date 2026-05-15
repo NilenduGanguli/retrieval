@@ -1,6 +1,6 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { useEffect, useState } from 'react'
-import { Activity, BarChart3, Database, FlaskConical, MessageSquare } from 'lucide-react'
+import { Activity, BarChart3, Database, FlaskConical, MessageSquare, ShieldCheck } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -8,6 +8,7 @@ import type { BackendConfig, HealthInfo } from '@/types'
 
 import CitiLogo from '@/components/CitiLogo'
 import IngestionTab from '@/components/IngestionTab'
+import KYCTab from '@/components/KYCTab'
 import RetrievalTab from '@/components/RetrievalTab'
 import AnalyticsTab from '@/components/AnalyticsTab'
 import BenchmarkTab from '@/components/BenchmarkTab'
@@ -15,6 +16,7 @@ import BenchmarkTab from '@/components/BenchmarkTab'
 const TABS = [
   { value: 'retrieval', label: 'Retrieval', icon: MessageSquare },
   { value: 'ingestion', label: 'Ingestion', icon: Database },
+  { value: 'kyc',       label: 'KYC',       icon: ShieldCheck },
   { value: 'analytics', label: 'Analytics', icon: BarChart3 },
   { value: 'benchmark', label: 'Benchmark', icon: FlaskConical },
 ]
@@ -106,6 +108,9 @@ export default function App() {
           </Tabs.Content>
           <Tabs.Content value="ingestion" className="outline-none">
             <IngestionTab health={health} onChange={() => api.health().then(setHealth)} />
+          </Tabs.Content>
+          <Tabs.Content value="kyc" className="outline-none">
+            <KYCTab />
           </Tabs.Content>
           <Tabs.Content value="analytics" className="outline-none">
             <AnalyticsTab />

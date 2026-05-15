@@ -69,6 +69,51 @@ export const api = {
       n_questions: number
       created_at: string
     }>>(`${BASE}/api/bench/runs`),
+
+  // KYC Intelligence ------------------------------------------------------
+  kycTaxonomy: () => json<{ categories: Record<string, string[]>; all_doc_types: string[] }>(
+    `${BASE}/api/kyc/taxonomy`,
+  ),
+  kycOwners: () => json<Array<{ owner: string; owner_normalized: string; doc_count: number }>>(
+    `${BASE}/api/kyc/owners`,
+  ),
+  kycDocTypes: (owner?: string) =>
+    json<Array<{ document_type: string; document_category: string | null; doc_count: number }>>(
+      `${BASE}/api/kyc/doc-types${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`,
+    ),
+  kycListByOwner: (owner: string, document_type?: string) =>
+    json<{ owner: string; document_type: string | null; results: any[] }>(
+      `${BASE}/api/kyc/list-by-owner`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ owner, document_type: document_type || null }),
+      },
+    ),
+  kycExtract: (owner: string, document_type: string) =>
+    json<{ owner: string; document_type: string; result: any }>(
+      `${BASE}/api/kyc/extract`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ owner, document_type }),
+      },
+    ),
+  kycUniversal: (keyword: string, top_k = 8) =>
+    json<{ keyword: string; results: any[] }>(`${BASE}/api/kyc/universal-search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ keyword, top_k }),
+    }),
+  kycBrowse: (category?: string) =>
+    json<{ category: string | null; total: number; groups: Array<{ owner: string; docs: any[] }> }>(
+      `${BASE}/api/kyc/browse${category ? `?category=${encodeURIComponent(category)}` : ''}`,
+    ),
+  kycDelete: (document_name: string) =>
+    json<{ ok: boolean; id: number; s3_uri: string | null }>(
+      `${BASE}/api/kyc/${encodeURIComponent(document_name)}`,
+      { method: 'DELETE' },
+    ),
 }
 
 // SSE helpers --------------------------------------------------------------

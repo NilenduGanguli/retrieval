@@ -26,6 +26,21 @@ def vec_to_pg(vec: list[float]) -> str:
     return "[" + ",".join(f"{x:.7g}" for x in vec) + "]"
 
 
+def vector_type() -> str:
+    """Return the SQL type identifier for pgvector's `vector` type,
+    schema-qualified when pgvector isn't in `public`.
+
+    Use in f-strings like:  ... $1::{vector_type()} ...
+    This avoids relying on the connection's search_path being correct
+    at PREPARE time, which is what trips ``UndefinedObjectError: type
+    "vector" does not exist`` on connections where the pool init
+    didn't manage to discover the schema in time.
+    """
+    if _pgvector_schema and _pgvector_schema != "public":
+        return f'"{_pgvector_schema}".vector'
+    return "vector"
+
+
 async def _discover_pgvector_schema(conn: asyncpg.Connection) -> str | None:
     """Return the schema where pgvector's `vector` type is registered."""
     row = await conn.fetchrow(

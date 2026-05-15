@@ -156,3 +156,66 @@ export type BenchRunResult = {
     answer: string
   }>
 }
+
+// ───────── KYC Intelligence ──────────────────────────────────
+export type KYCTaxonomy = {
+  categories: Record<string, string[]>
+  all_doc_types: string[]
+}
+
+export type KYCDocument = {
+  id: number
+  document_name: string
+  owner: string | null
+  document_type: string | null
+  document_category: string | null
+  confidence_score: number | null
+  source_platform: string | null
+  report_date: string | null
+  classification_signals: any
+  extracted_data: Record<string, any>
+  s3_uri: string | null
+  created_at?: string | null
+}
+
+export type KYCOwner = {
+  owner: string
+  owner_normalized: string
+  doc_count: number
+}
+
+export type KYCDocTypeRow = {
+  document_type: string
+  document_category: string | null
+  doc_count: number
+}
+
+export type KYCExtraction = {
+  owner: string
+  document_name: string
+  document_type: string
+  document_category?: string | null
+  score: number
+  s3_uri?: string | null
+  data: Record<string, any>
+  stored_extracted_data?: Record<string, any>
+  confidence_score?: number | null
+  source_platform?: string | null
+  report_date?: string | null
+}
+
+export type KYCUniversalHit = {
+  kyc_document_id: number | null
+  owner: string
+  document_name: string
+  document_type: string
+  document_category: string | null
+  confidence_score: number | null
+  source_platform: string | null
+  report_date: string | null
+  s3_uri: string | null
+  matched_field: string
+  matched_value: string
+  relevance_score: number
+  match_source: 'metadata' | 'vector+llm' | string
+}

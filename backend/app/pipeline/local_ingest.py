@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from ..config import settings
-from ..db import acquire, vec_to_pg
+from ..db import acquire, vec_to_pg, vector_type
 from ..s3_store import s3_put
 from ..stellar_client import get_stellar
 
@@ -185,7 +185,7 @@ async def ingest_document_local(
                         f'INSERT INTO "{schema}"."{table}" '
                         f'(content, "chunkUUID", "pageNumber", "tokenCount", "chunkType", '
                         f' "documentName", "jobId", embedding) '
-                        f'VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector) '
+                        f'VALUES ($1, $2, $3, $4, $5, $6, $7, $8::{vector_type()}) '
                         f'ON CONFLICT ("chunkUUID") DO NOTHING',
                         content,
                         chunk_uuid,
