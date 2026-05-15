@@ -211,29 +211,20 @@ _stellar: StellarClient | None = None
 
 
 def get_stellar() -> "StellarClient | object":
-    """Provider-aware dispatcher.
+    """
+    Returns either a StellarClient (production) or a VertexClient
+    (local-test) depending on settings.llm_provider.
 
-    Returns the active LLM client based on settings.llm_provider:
-
-      - "vertex_internal"  → InternalVertexClient (Vertex via internal
-                              proxy + COIN token, via get_llm.VertexGenAI).
-                              Recommended for production VDI.
-      - "vertex"            → VertexClient (google-genai + service-account
-                              JSON, talks direct to Google).
-      - "stellar"           → StellarClient (OpenAI-compatible Stellar API,
-                              Llama/Mistral).
-
-    All three implement the same public surface:
+    Both implement the same public surface:
         embed(texts) -> list[list[float]]
         embed_one(text) -> list[float]
         chat(model, messages, ...) -> (text, TokenUsage)
         chat_stream(model, messages, ...) -> AsyncIterator[str]
+
+    Pipeline modules call this exactly once via the alias and the rest of
+    the code is provider-agnostic.
     """
-    provider = settings.llm_provider.lower()
-    if provider in ("vertex_internal", "internal_vertex"):
-        from .internal_vertex_client import get_internal_vertex
-        return get_internal_vertex()
-    if provider == "vertex":
+    if settings.llm_provider.lower() == "vertex":
         from .vertex_client import get_vertex
         return get_vertex()
     global _stellar
@@ -248,15 +239,10 @@ def model_for(task: str) -> str:
 
     task is one of: "final_gen", "rerank", "fast", "contextual", "embedding"
     """
-    provider = settings.llm_provider.lower().replace("internal_vertex", "vertex_internal")
+    provider = settings.llm_provider.lower()
     attr = f"{provider}_{task}_model" if task != "embedding" else f"{provider}_embedding_model"
     name = getattr(settings, attr, None)
     if name:
         return name
-    # Fallback ladder when a specific provider/task setting is missing.
-    for fallback in ("internal_vertex", "vertex", "stellar"):
-        attr = f"{fallback}_{task}_model" if task != "embedding" else f"{fallback}_embedding_model"
-        name = getattr(settings, attr, None)
-        if name:
-            return name
-    return ""
+    # Fallback to Stellar defaults if Vertex setting missing
+    return getattr(settings, f"stellar_{task}_model", "")

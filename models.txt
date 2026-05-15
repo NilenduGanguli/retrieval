@@ -21,12 +21,11 @@ gte-large-en-v1.5
 # text-embedding-ada-002
 
 # ============================================================
-# Vertex AI / Internal Vertex (Google Gemini) — chat / generation
+# Vertex AI (Google) — chat / generation
 # ============================================================
-# THE one to use: gemini-2.0-flash-001 (small, fast, structured-output capable).
-gemini-2.0-flash-001
 gemini-2.5-flash
 gemini-2.5-pro
+gemini-2.0-flash-001
 gemini-2.0-flash-lite-001
 # gemini-1.5-pro
 # gemini-1.5-flash
