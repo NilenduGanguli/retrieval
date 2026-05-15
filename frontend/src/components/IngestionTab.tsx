@@ -1,6 +1,7 @@
 import {
-  Braces, Coins, Database, Download, FileUp, History, Layers, Layers3,
-  Loader2, RefreshCw, Rows3, Sparkles, Table as TableIcon, Trash2, Wand2,
+  Braces, Coins, Database, Download, Eye, FileText, FileUp, History, Layers,
+  Layers3, Loader2, RefreshCw, Rows3, Sparkles, Table as TableIcon, Trash2,
+  Wand2, X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -35,6 +36,10 @@ type UploadSession = {
   finishedAt: number | null
   events: SessionEvent[]
   summary: Record<string, any> | null
+  // Raw WEGA SDK chunker output (from ingest_core.py:chunker_result). Only
+  // present on the remote-WEGA path; absent for local Vertex and the
+  // subprocess path, in which case the UI falls back to the events stream.
+  chunkerResult: unknown | null
   error: string | null
   chunks: SessionChunk[] | null
   chunksLoading: boolean
@@ -120,6 +125,7 @@ export default function IngestionTab({ health, onChange }: Props) {
         finishedAt: null,
         events: [],
         summary: null,
+        chunkerResult: null,
         error: null,
         chunks: null,
         chunksLoading: false,
@@ -215,6 +221,14 @@ export default function IngestionTab({ health, onChange }: Props) {
             else if (line.startsWith('extracted')) setUploadStage('extracted')
             else if (line.startsWith('created')) setUploadStage('chunking')
             setUploadLog(l => [...l, { type: 'log', text: line, at: Date.now() }])
+          }
+          else if (evt === 'chunker_result') {
+            // Raw WEGA SDK chunker output — store on the session so the
+            // Response JSON tab can render this instead of the SSE log.
+            updateSession(sessionKey, s => ({
+              ...s,
+              chunkerResult: data.chunker_result ?? data,
+            }))
           }
           else if (evt === 'progress') {
             setUploadStage('embedding')
@@ -794,6 +808,7 @@ function UploadSessionPanel({
     [sessions, activeKey],
   )
   const [view, setView] = useState<'json' | 'chunks'>('json')
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   if (!active) return null
 
@@ -803,24 +818,41 @@ function UploadSessionPanel({
   const chunks = active.chunks ?? []
   const processed = (summary?.processed as number | undefined) ?? chunks.length
 
-  // Full payload to expose / download — includes every SSE event so the user
-  // can audit exactly what the backend returned, not just the final summary.
-  const fullPayload = useMemo(() => ({
-    document_name: active.documentName,
-    document_id: active.documentId,
-    sha256: active.sha256,
-    started_at: new Date(active.startedAt).toISOString(),
-    finished_at: active.finishedAt ? new Date(active.finishedAt).toISOString() : null,
-    error: active.error,
-    summary: active.summary,
-    events: active.events,
-  }), [active])
+  // Two possible JSON shapes:
+  //   1. WEGA chunker_result (preferred) — the structured SDK output emitted
+  //      by ingest_core.py for the remote-WEGA path.
+  //   2. Fallback SSE events log — every event we captured during the upload.
+  //      Shown when the chunker_result event was never emitted (e.g. the
+  //      local-Vertex or WEGA-subprocess paths).
+  const hasChunkerResult = active.chunkerResult != null
+  const jsonPayload = useMemo(() => {
+    if (hasChunkerResult) {
+      return {
+        document_name: active.documentName,
+        document_id: active.documentId,
+        sha256: active.sha256,
+        chunker_result: active.chunkerResult,
+      }
+    }
+    return {
+      document_name: active.documentName,
+      document_id: active.documentId,
+      sha256: active.sha256,
+      started_at: new Date(active.startedAt).toISOString(),
+      finished_at: active.finishedAt ? new Date(active.finishedAt).toISOString() : null,
+      error: active.error,
+      summary: active.summary,
+      events: active.events,
+      note: 'chunker_result not emitted by this path — falling back to SSE event log.',
+    }
+  }, [active, hasChunkerResult])
 
-  const jsonText = useMemo(() => JSON.stringify(fullPayload, null, 2), [fullPayload])
+  const jsonText = useMemo(() => JSON.stringify(jsonPayload, null, 2), [jsonPayload])
 
   function downloadJson() {
     const base = sanitizeFilename(active.documentName.replace(/\.[^.]+$/, ''))
-    triggerDownload(`${base}.ingest.json`, jsonText, 'application/json')
+    const suffix = hasChunkerResult ? 'chunker.json' : 'ingest.json'
+    triggerDownload(`${base}.${suffix}`, jsonText, 'application/json')
   }
   function downloadCsv() {
     if (!chunks.length) return
@@ -878,8 +910,22 @@ function UploadSessionPanel({
 
       {/* Identity strip */}
       <div className="card-soft p-2.5 space-y-1">
-        <div className="text-sm font-medium text-ink truncate" title={active.documentName}>
-          {active.documentName}
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-medium text-ink truncate flex-1" title={active.documentName}>
+            {active.documentName}
+          </div>
+          {docId && (
+            <button
+              onClick={() => setPreviewOpen(true)}
+              title="Preview the source PDF inline"
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-md
+                         border border-line bg-bg-soft text-citi-blue
+                         hover:border-accent hover:text-accent-dark transition shrink-0"
+            >
+              <Eye className="w-3 h-3" />
+              View
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-citi-blue">
           {docId && (
@@ -912,8 +958,8 @@ function UploadSessionPanel({
           active={view === 'json'}
           onClick={() => setView('json')}
           icon={<Braces className="w-3.5 h-3.5" />}
-          label="Response JSON"
-          badge={String(active.events.length)}
+          label={hasChunkerResult ? 'Chunker Result' : 'Response JSON'}
+          badge={hasChunkerResult ? 'wega' : `${active.events.length}`}
         />
         <TabButton
           active={view === 'chunks'}
@@ -983,6 +1029,67 @@ function UploadSessionPanel({
           hasDocumentId={!!docId}
         />
       )}
+
+      {previewOpen && docId && (
+        <SessionPreviewModal
+          documentId={docId}
+          displayName={active.documentName}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function SessionPreviewModal({
+  documentId, displayName, onClose,
+}: {
+  documentId: string
+  displayName: string
+  onClose: () => void
+}) {
+  // /api/documents/{ident}/view accepts either a UUID or a legacy name;
+  // we always pass the UUID since it's unambiguous post-migration 005.
+  const src = `/api/documents/${encodeURIComponent(documentId)}/view`
+  const downloadHref = `/api/documents/${encodeURIComponent(documentId)}/download`
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-bg border border-line rounded-lg shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <FileText className="w-4 h-4 text-accent shrink-0" />
+            <span className="font-medium truncate" title={displayName}>{displayName}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={downloadHref}
+              className="text-xs px-2 py-1 rounded border border-line hover:border-accent/60 hover:text-accent transition inline-flex items-center gap-1"
+            >
+              <Download className="w-3 h-3" />
+              Download
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded hover:bg-bg-soft text-citi-blue hover:text-ink transition"
+              aria-label="Close preview"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <iframe
+          src={src}
+          title={`Preview of ${displayName}`}
+          className="flex-1 w-full bg-white"
+        />
+      </div>
     </div>
   )
 }

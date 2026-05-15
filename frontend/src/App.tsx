@@ -64,7 +64,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <span className="font-semibold tracking-tight text-citi-blue text-base">
-              RAG <span className="heading-glow">Studio</span>
+              KYC <span className="heading-glow">DOCUMENT SEARCH</span>
             </span>
             <span className="ml-2 text-xs text-citi-blue hidden sm:inline">
               hybrid · contextual · listwise rerank · CRAG

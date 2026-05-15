@@ -259,6 +259,17 @@ async def ingest_pdf(
         elapsed=round(time.time() - t0, 2),
     )
 
+    # Surface the raw WEGA SDK output so the UI's "Response JSON" tab can
+    # display the same structure that ingest_core received. Emitted as its
+    # own SSE event so progress messages stay small; only one chunker_result
+    # ever flows per upload.
+    await emit(
+        progress_cb,
+        type="chunker_result",
+        document_name=cfg["file_name"],
+        chunker_result=chunker_result,
+    )
+
     # ── Step 2 — Embed ────────────────────────────────────────────────────
     await emit(progress_cb, type="stage", stage="embed", status="start", total=len(chunks))
     contents = [c["content"] for c in chunks]
