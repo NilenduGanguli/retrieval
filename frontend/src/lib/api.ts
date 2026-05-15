@@ -23,13 +23,14 @@ export const api = {
   config: () => json<BackendConfig>(`${BASE}/api/config`),
 
   documents: () => json<DocumentSummary[]>(`${BASE}/api/documents`),
-  documentChunks: (name: string, limit = 100) =>
-    json<{ document_name: string; chunks: Array<any> }>(
-      `${BASE}/api/documents/${encodeURIComponent(name)}/chunks?limit=${limit}`,
+  documentChunks: (ident: string, limit = 100) =>
+    json<{ document_id: string | null; document_name: string | null; chunks: Array<any> }>(
+      `${BASE}/api/documents/${encodeURIComponent(ident)}/chunks?limit=${limit}`,
     ),
-  deleteDocument: (name: string) =>
-    json<{ document_name: string; soft_deleted_chunks: number; s3_uri_removed: string | null }>(
-      `${BASE}/api/documents/${encodeURIComponent(name)}`,
+  // ident is a document_id (UUID, preferred) or legacy document_name.
+  deleteDocument: (ident: string) =>
+    json<{ document_id: string | null; document_name: string | null; soft_deleted_chunks: number; s3_uri_removed: string | null }>(
+      `${BASE}/api/documents/${encodeURIComponent(ident)}`,
       { method: 'DELETE' },
     ),
 

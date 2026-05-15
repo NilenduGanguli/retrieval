@@ -152,13 +152,15 @@ export default function IngestionTab({ health, onChange }: Props) {
     uploadPdf(next, () => setCurrentFile(null))
   }, [queue, currentFile])
 
-  async function handleDelete(name: string) {
-    setPendingDelete(name)
+  // `ident` is either a document_id (UUID) — preferred — or a legacy document_name.
+  async function handleDelete(ident: string) {
+    setPendingDelete(ident)
     try {
-      const r = await api.deleteDocument(name)
+      const r = await api.deleteDocument(ident)
+      const label = r.document_name ?? ident
       setUploadLog(l => [...l, {
         type: 'done',
-        text: `🗑 soft-deleted "${name}" · ${r.soft_deleted_chunks} chunks${r.s3_uri_removed ? ` · S3: ${r.s3_uri_removed}` : ''}`,
+        text: `🗑 soft-deleted "${label}" · ${r.soft_deleted_chunks} chunks${r.s3_uri_removed ? ` · S3: ${r.s3_uri_removed}` : ''}`,
         at: Date.now(),
       }])
       await loadDocs()
@@ -401,14 +403,17 @@ export default function IngestionTab({ health, onChange }: Props) {
           </button>
         </div>
         <div className="space-y-2 max-h-[calc(100vh-180px)] overflow-y-auto pr-1">
-          {(docs || []).map(d => (
-            <DocCard
-              key={d.document_name}
-              doc={d}
-              busy={pendingDelete === d.document_name}
-              onDelete={() => handleDelete(d.document_name)}
-            />
-          ))}
+          {(docs || []).map(d => {
+            const ident = d.document_id ?? d.document_name
+            return (
+              <DocCard
+                key={ident}
+                doc={d}
+                busy={pendingDelete === ident}
+                onDelete={() => handleDelete(ident)}
+              />
+            )
+          })}
           {(docs || []).length === 0 && (
             <div className="text-xs text-citi-blue px-2 py-4">No documents indexed yet.</div>
           )}
@@ -508,12 +513,28 @@ function DocCard({
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="flex items-center gap-2 text-[11px] text-citi-blue mb-2">
+      <div className="flex items-center gap-2 text-[11px] text-citi-blue mb-2 flex-wrap">
         {doc.first_page != null && doc.last_page != null && (
           <span>pp. {doc.first_page}-{doc.last_page}</span>
         )}
         {doc.total_tokens != null && <span>{(doc.total_tokens / 1000).toFixed(1)}k tok</span>}
         {doc.latest_job_id && <span className="truncate">job: {doc.latest_job_id.slice(0, 8)}</span>}
+        {doc.document_id && (
+          <span
+            className="font-mono text-[10px] opacity-80 truncate"
+            title={`document_id: ${doc.document_id}`}
+          >
+            id: {doc.document_id.slice(0, 8)}
+          </span>
+        )}
+        {doc.sha256 && (
+          <span
+            className="font-mono text-[10px] opacity-80 truncate"
+            title={`sha256: ${doc.sha256}`}
+          >
+            sha: {doc.sha256.slice(0, 8)}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 h-1.5 rounded-full bg-bg-soft overflow-hidden">

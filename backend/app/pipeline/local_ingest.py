@@ -12,6 +12,7 @@ The WEGA path stays untouched — this only kicks in when we're on a laptop.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 import uuid
@@ -102,8 +103,10 @@ async def ingest_document_local(
 
     doc_name = document_name or p.name
     job_id = str(uuid.uuid4())
+    document_id = str(uuid.uuid4())
     file_bytes = p.read_bytes()
     size_bytes = len(file_bytes)
+    sha256 = hashlib.sha256(file_bytes).hexdigest()
 
     # ---- S3 persistence (best-effort) ----
     s3_uri: str | None = None
@@ -118,21 +121,21 @@ async def ingest_document_local(
             await emit(type="log", line=f"S3 upload failed (continuing): {exc}")
 
     # ---- documents row ----
+    # Each upload is a NEW row (name is no longer unique post-migration 005);
+    # the UUID `id` is the authoritative key. SHA-256 is recorded for audit
+    # and future dedup policies.
     try:
         async with acquire() as conn:
             await conn.execute(
                 f'INSERT INTO "{settings.pg_schema}".documents '
-                f'(name, s3_uri, size_bytes, content_type, uploaded_at) '
-                f'VALUES ($1, $2, $3, $4, now()) '
-                f'ON CONFLICT (name) DO UPDATE SET '
-                f'  s3_uri = EXCLUDED.s3_uri, size_bytes = EXCLUDED.size_bytes, '
-                f'  content_type = EXCLUDED.content_type, uploaded_at = now(), '
-                f'  deleted_at = NULL',
-                doc_name, s3_uri, size_bytes,
+                f'(id, name, s3_uri, size_bytes, content_type, sha256, uploaded_at) '
+                f'VALUES ($1::uuid, $2, $3, $4, $5, $6, now())',
+                document_id, doc_name, s3_uri, size_bytes,
                 "application/pdf" if p.suffix.lower() == ".pdf" else "application/octet-stream",
+                sha256,
             )
     except Exception:  # noqa: BLE001
-        logger.exception("documents upsert failed")
+        logger.exception("documents insert failed")
 
     await emit(type="log", line=f"reading {p.name}")
     pages = _extract_text(str(p), data=file_bytes)
@@ -184,8 +187,8 @@ async def ingest_document_local(
                     await conn.execute(
                         f'INSERT INTO "{schema}"."{table}" '
                         f'(content, "chunkUUID", "pageNumber", "tokenCount", "chunkType", '
-                        f' "documentName", "jobId", embedding) '
-                        f'VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector) '
+                        f' "documentName", document_id, "jobId", embedding) '
+                        f'VALUES ($1, $2, $3, $4, $5, $6, $7::uuid, $8, $9::vector) '
                         f'ON CONFLICT ("chunkUUID") DO NOTHING',
                         content,
                         chunk_uuid,
@@ -193,6 +196,7 @@ async def ingest_document_local(
                         token_count,
                         "paragraph",
                         doc_name,
+                        document_id,
                         job_id,
                         vec_to_pg(emb),
                     )
@@ -217,6 +221,8 @@ async def ingest_document_local(
         "total": total,
         "job_id": job_id,
         "document": doc_name,
+        "document_id": document_id,
+        "sha256": sha256,
     }
     await emit(type="done", message=f"done — {processed}/{total} chunks", **summary)
     return summary

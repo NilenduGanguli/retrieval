@@ -78,7 +78,9 @@ class ChatRequest(BaseModel):
 # Documents
 # ============================================================================
 class DocumentSummary(BaseModel):
+    document_id: str | None = None
     document_name: str
+    sha256: str | None = None
     chunk_count: int
     total_tokens: int | None = None
     first_page: int | None = None

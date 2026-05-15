@@ -53,7 +53,9 @@ export type Citation = {
 }
 
 export type DocumentSummary = {
+  document_id?: string | null
   document_name: string
+  sha256?: string | null
   chunk_count: number
   total_tokens?: number | null
   first_page?: number | null

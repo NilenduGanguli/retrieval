@@ -102,20 +102,44 @@ export default function App() {
       </header>
 
       <main className="flex-1 max-w-[1600px] mx-auto w-full px-6 py-6">
+        {/* forceMount keeps each tab's React subtree mounted across switches so
+            ingest progress, KYC search results, benchmark runs etc. don't get
+            torn down when the user navigates away. Inactive panels are hidden
+            via the data-[state=inactive]:hidden utility. */}
         <Tabs.Root value={tab} onValueChange={setTab}>
-          <Tabs.Content value="retrieval" className="outline-none">
+          <Tabs.Content
+            value="retrieval"
+            forceMount
+            className="outline-none data-[state=inactive]:hidden"
+          >
             <RetrievalTab config={config} />
           </Tabs.Content>
-          <Tabs.Content value="ingestion" className="outline-none">
+          <Tabs.Content
+            value="ingestion"
+            forceMount
+            className="outline-none data-[state=inactive]:hidden"
+          >
             <IngestionTab health={health} onChange={() => api.health().then(setHealth)} />
           </Tabs.Content>
-          <Tabs.Content value="kyc" className="outline-none">
+          <Tabs.Content
+            value="kyc"
+            forceMount
+            className="outline-none data-[state=inactive]:hidden"
+          >
             <KYCTab />
           </Tabs.Content>
-          <Tabs.Content value="analytics" className="outline-none">
+          <Tabs.Content
+            value="analytics"
+            forceMount
+            className="outline-none data-[state=inactive]:hidden"
+          >
             <AnalyticsTab />
           </Tabs.Content>
-          <Tabs.Content value="benchmark" className="outline-none">
+          <Tabs.Content
+            value="benchmark"
+            forceMount
+            className="outline-none data-[state=inactive]:hidden"
+          >
             <BenchmarkTab config={config} />
           </Tabs.Content>
         </Tabs.Root>

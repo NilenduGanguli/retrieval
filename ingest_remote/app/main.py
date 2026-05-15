@@ -120,21 +120,28 @@ async def ingest(
 
     async def _worker() -> None:
         try:
-            # Persist source PDF to S3 + UPSERT documents row (when enabled
-            # on THIS service; skipped silently otherwise).
+            # Persist source PDF to S3 + INSERT a documents row. Always
+            # mints a fresh UUID + SHA-256 so the chunk inserts can stamp
+            # the same document_id on every row they produce.
             from .persist import persist_source
-            s3_uri = await persist_source(str(saved), doc_name)
-            if s3_uri:
-                await progress_cb({"type": "stage", "stage": "s3", "status": "done", "s3_uri": s3_uri})
+            persisted = await persist_source(str(saved), doc_name)
+            if persisted.s3_uri:
+                await progress_cb({"type": "stage", "stage": "s3", "status": "done", "s3_uri": persisted.s3_uri})
 
             summary = await runner(
                 str(saved),
                 document_name=doc_name,
+                document_id=persisted.document_id,
                 overrides=overrides,
                 progress_cb=progress_cb,
             )
-            if s3_uri:
-                summary = {**summary, "s3_uri": s3_uri}
+            if persisted.s3_uri:
+                summary = {**summary, "s3_uri": persisted.s3_uri}
+            summary = {
+                **summary,
+                "document_id": persisted.document_id,
+                "sha256": persisted.sha256,
+            }
             await queue.put({"type": "done", **summary})
         except Exception as exc:
             logger.exception("remote ingest failed (%s mode)", provider)

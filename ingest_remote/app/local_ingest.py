@@ -268,6 +268,7 @@ async def ingest_pdf_local(
     pdf_path: str,
     *,
     document_name: str,
+    document_id: str | None = None,
     overrides: Optional[Dict[str, Any]] = None,
     progress_cb: ProgressCB = None,
 ) -> Dict[str, Any]:
@@ -364,8 +365,8 @@ async def ingest_pdf_local(
                             (id, "documentClass", title, "sectionHeading", content,
                              "partNumber", "totalPartNumber", "chunkUUID", "pageNumber",
                              "tokenCount", "chunkType", "chunkBoundingBox",
-                             "documentName", "jobId", embedding)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             "documentName", document_id, "jobId", embedding)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             content = EXCLUDED.content,
                             embedding = EXCLUDED.embedding
@@ -381,6 +382,7 @@ async def ingest_pdf_local(
                             "paragraph",
                             None,
                             document_name,
+                            document_id,
                             job_id,
                             embedding,
                         ),
@@ -390,8 +392,8 @@ async def ingest_pdf_local(
                         f"""
                         INSERT INTO "{settings.pg_schema}".{index_name}
                             (content, "chunkUUID", "pageNumber", "tokenCount", "chunkType",
-                             "documentName", "jobId", embedding)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                             "documentName", document_id, "jobId", embedding)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s::uuid, %s, %s)
                         ON CONFLICT ("chunkUUID") DO NOTHING
                         """,
                         (
@@ -401,6 +403,7 @@ async def ingest_pdf_local(
                             token_count,
                             "paragraph",
                             document_name,
+                            document_id,
                             job_id,
                             embedding,
                         ),

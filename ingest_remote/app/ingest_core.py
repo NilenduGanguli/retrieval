@@ -197,6 +197,7 @@ async def ingest_pdf(
     pdf_path: str,
     *,
     document_name: str,
+    document_id: str | None = None,
     overrides: Optional[Dict[str, Any]] = None,
     progress_cb: ProgressCB = None,
 ) -> Dict[str, Any]:
@@ -306,8 +307,8 @@ async def ingest_pdf(
                         (id, "documentClass", title, "sectionHeading", content,
                          "partNumber", "totalPartNumber", "chunkUUID", "pageNumber",
                          "tokenCount", "chunkType", "chunkBoundingBox",
-                         "documentName", "jobId", embedding)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         "documentName", document_id, "jobId", embedding)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s, %s)
                     ON CONFLICT (id) DO UPDATE SET
                         content = EXCLUDED.content,
                         embedding = EXCLUDED.embedding
@@ -326,6 +327,7 @@ async def ingest_pdf(
                         chunk.get("chunkType"),
                         bbox,
                         document_name,
+                        document_id,
                         cfg["job_id"],
                         embedding,
                     ),
