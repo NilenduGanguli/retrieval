@@ -15,11 +15,13 @@ emitted via a queue.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
 
 import httpx
@@ -159,57 +161,25 @@ def _run_ingest_in_thread(pdf_path: str, line_callback) -> int:
         root_logger.setLevel(prev_level)
 
 
-async def _persist_source(saved: Path, filename: str) -> str | None:
-    """Upload the source PDF to S3 + upsert the documents row.
-
-    Used both for local-ingest and remote-proxy paths so View/Download work
-    consistently. Returns the s3:// URI on success, None otherwise.
-    Best-effort — failures here must not block ingestion.
-    """
-    if not settings.s3_enabled:
-        return None
-    try:
-        data = saved.read_bytes()
-        import uuid as _uuid
-        s3_key = f"docs/{_uuid.uuid4().hex[:8]}/{Path(filename).name}"
-        content_type = (
-            "application/pdf"
-            if Path(filename).suffix.lower() == ".pdf"
-            else "application/octet-stream"
-        )
-        s3_uri = await s3_put(s3_key, data, content_type=content_type)
-        async with acquire() as conn:
-            await conn.execute(
-                f'INSERT INTO "{settings.pg_schema}".documents '
-                f'(name, s3_uri, size_bytes, content_type, uploaded_at) '
-                f'VALUES ($1, $2, $3, $4, now()) '
-                f'ON CONFLICT (name) DO UPDATE SET '
-                f'  s3_uri = EXCLUDED.s3_uri, size_bytes = EXCLUDED.size_bytes, '
-                f'  content_type = EXCLUDED.content_type, uploaded_at = now(), '
-                f'  deleted_at = NULL',
-                filename, s3_uri, len(data), content_type,
-            )
-        return s3_uri
-    except Exception:
-        logger.exception("S3 persistence failed (continuing ingestion anyway)")
-        return None
-
-
 async def _stream_remote_ingest(saved: Path, filename: str):
-    """Open a streaming POST to the remote ingest service and re-emit its SSE."""
+    """Open a streaming POST to the remote ingest service and re-emit its SSE.
+
+    The remote service owns S3 upload + documents-row insertion (with its own
+    UUID + SHA-256, see ingest_remote/app/persist.py). The backend used to
+    pre-insert a documents row here as well, but post-migration 005 that was
+    both redundant (double insertion) and broken (its `ON CONFLICT (name)`
+    referenced a unique constraint we dropped). The remote service emits a
+    `stage:s3 status:done` event so the UI still sees the S3 URI.
+    """
     url = settings.remote_ingest_url.rstrip("/") + "/ingest"
     headers: dict[str, str] = {}
     if settings.remote_ingest_secret:
         headers["X-Ingest-Secret"] = settings.remote_ingest_secret
 
-    # Persist source + documents row up-front so View/Download work regardless
-    # of where the actual chunking happens.
-    s3_uri = await _persist_source(saved, filename)
-
     yield {
         "event": "start",
         "data": json.dumps(
-            {"file": str(saved), "filename": filename, "mode": "remote", "s3_uri": s3_uri}
+            {"file": str(saved), "filename": filename, "mode": "remote"}
         ),
     }
 
@@ -325,13 +295,82 @@ async def wega_ingest(file: UploadFile = File(...)) -> EventSourceResponse:
         return EventSourceResponse(_events_local())
 
     # ----- PROD path (Stellar provider on VDI): hand off to the existing ingest.py -----
+    # The legacy ingest.py was written before migration 005 added document_id /
+    # sha256, so it inserts chunks with NULL document_id. We bracket the
+    # subprocess with two short SQL calls so the new schema + Upload-Session
+    # panel still work end-to-end:
+    #   1. before: INSERT a documents row with a fresh UUID + SHA-256
+    #   2. after:  UPDATE the just-written chunks to carry that UUID
+    document_name = file.filename or saved.name
+    document_id = str(uuid.uuid4())
+    file_bytes = saved.read_bytes()
+    sha256_hex = hashlib.sha256(file_bytes).hexdigest()
+    size_bytes = len(file_bytes)
+    content_type = (
+        "application/pdf"
+        if Path(document_name).suffix.lower() == ".pdf"
+        else "application/octet-stream"
+    )
+
+    s3_uri: str | None = None
+    if settings.s3_enabled:
+        try:
+            s3_key = f"docs/{document_id[:8]}/{Path(document_name).name}"
+            s3_uri = await s3_put(s3_key, file_bytes, content_type=content_type)
+        except Exception:  # noqa: BLE001
+            logger.exception("S3 upload failed (continuing)")
+
+    try:
+        async with acquire() as conn:
+            await conn.execute(
+                f'INSERT INTO "{settings.pg_schema}".documents '
+                f'(id, name, s3_uri, size_bytes, content_type, sha256, uploaded_at) '
+                f'VALUES ($1::uuid, $2, $3, $4, $5, $6, now())',
+                document_id, document_name, s3_uri, size_bytes, content_type, sha256_hex,
+            )
+    except Exception:  # noqa: BLE001
+        logger.exception("documents pre-insert failed (continuing)")
+
     def _line_cb(line: str) -> None:
         asyncio.run_coroutine_threadsafe(queue.put({"type": "log", "line": line}), loop)
+
+    async def _backfill_chunk_document_id() -> int:
+        """Stamp `document_id` onto every NULL-document_id chunk the legacy
+        ingest.py just wrote under this filename. Returns the rowcount.
+        """
+        try:
+            async with acquire() as conn:
+                res = await conn.execute(
+                    f'UPDATE "{settings.pg_schema}"."{settings.pg_table}" '
+                    f'SET document_id = $1::uuid '
+                    f'WHERE "documentName" = $2 AND document_id IS NULL '
+                    f'  AND deleted_at IS NULL',
+                    document_id, document_name,
+                )
+                # asyncpg returns "UPDATE N"; parse out N (best-effort).
+                try:
+                    return int(res.split()[-1])
+                except (ValueError, IndexError):
+                    return 0
+        except Exception:  # noqa: BLE001
+            logger.exception("backfill chunk document_id failed")
+            return 0
 
     async def _worker() -> None:
         try:
             rc = await loop.run_in_executor(None, _run_ingest_in_thread, str(saved), _line_cb)
-            await queue.put({"type": "done", "returncode": rc, "file": str(saved)})
+            stamped = await _backfill_chunk_document_id() if rc == 0 else 0
+            await queue.put({
+                "type": "done",
+                "returncode": rc,
+                "file": str(saved),
+                "document": document_name,
+                "document_id": document_id,
+                "sha256": sha256_hex,
+                "s3_uri": s3_uri,
+                "processed": stamped,
+                "total": stamped,
+            })
         except Exception as exc:
             await queue.put({"type": "error", "message": str(exc)})
         finally:
@@ -342,7 +381,14 @@ async def wega_ingest(file: UploadFile = File(...)) -> EventSourceResponse:
         try:
             yield {
                 "event": "start",
-                "data": json.dumps({"file": str(saved), "mode": "wega-stellar"}),
+                "data": json.dumps({
+                    "file": str(saved),
+                    "filename": document_name,
+                    "mode": "wega-stellar",
+                    "document_id": document_id,
+                    "sha256": sha256_hex,
+                    "s3_uri": s3_uri,
+                }),
             }
             while True:
                 item = await queue.get()

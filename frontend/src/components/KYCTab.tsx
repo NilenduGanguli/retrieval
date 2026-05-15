@@ -7,9 +7,13 @@
  *   3. Document Browser (group by owner, filter by category)
  */
 import {
-  Building2, ChevronDown, ChevronRight, FileText, Filter, IdCard, Layers,
-  Loader2, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Upload,
+  Banknote, BarChart3, Building2, Calculator, CheckCircle2, ChevronDown,
+  ChevronRight, ClipboardList, FileSignature, FileText, Filter, IdCard,
+  Landmark, Layers, Lightbulb, Loader2, Mail, MinusCircle, Receipt, RefreshCw,
+  Scale, Search, SearchCheck, ShieldCheck, Sparkles, Telescope, Trash2,
+  Upload, User,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api, uploadSse } from '@/lib/api'
@@ -19,23 +23,34 @@ import { cn } from '@/lib/cn'
 // Helpers
 // ───────────────────────────────────────────────────────────────────────────
 
-function docIcon(docType: string | null | undefined): string {
+function docTypeIcon(docType: string | null | undefined): LucideIcon {
   const t = (docType || '').toLowerCase()
-  if (t.includes('orbis') || t.includes('moody')) return '🔭'
-  if (t.match(/d&b|dun|lexisnexis|aml|worldbase|market intelligence/)) return '🔎'
-  if (t.match(/incorporation|registration|continuance|amendment|memorandum|articles/)) return '🏢'
-  if (t.match(/bank|signature card|banking resolution|financial|statement/)) return '🏦'
-  if (t.match(/passport|aadhaar|pan|driver|voter|national id/)) return '🪪'
-  if (t.match(/gis|kyc|ownership|beneficial/)) return '📊'
-  if (t.match(/resolution|power of attorney|notarial|board/)) return '⚖️'
-  if (t.match(/agreement|contract|loan|guarantee/)) return '📝'
-  if (t.match(/salary|payslip/)) return '💰'
-  if (t.match(/utility|bill/)) return '🧾'
-  if (t.match(/insurance/)) return '🛡️'
-  if (t.match(/resignation|letter/)) return '✉️'
-  if (t.match(/lodgement|form/)) return '📋'
-  if (t.match(/tax/)) return '🧮'
-  return '📄'
+  if (t.includes('orbis') || t.includes('moody')) return Telescope
+  if (t.match(/d&b|dun|lexisnexis|aml|worldbase|market intelligence/)) return SearchCheck
+  if (t.match(/incorporation|registration|continuance|amendment|memorandum|articles/)) return Building2
+  if (t.match(/bank|signature card|banking resolution|financial|statement/)) return Landmark
+  if (t.match(/passport|aadhaar|pan|driver|voter|national id/)) return IdCard
+  if (t.match(/gis|kyc|ownership|beneficial/)) return BarChart3
+  if (t.match(/resolution|power of attorney|notarial|board/)) return Scale
+  if (t.match(/agreement|contract|loan|guarantee/)) return FileSignature
+  if (t.match(/salary|payslip/)) return Banknote
+  if (t.match(/utility|bill/)) return Receipt
+  if (t.match(/insurance/)) return ShieldCheck
+  if (t.match(/resignation|letter/)) return Mail
+  if (t.match(/lodgement|form/)) return ClipboardList
+  if (t.match(/tax/)) return Calculator
+  return FileText
+}
+
+function DocIcon({
+  type,
+  className = 'w-4 h-4 text-accent',
+}: {
+  type: string | null | undefined
+  className?: string
+}) {
+  const Icon = docTypeIcon(type)
+  return <Icon className={className} />
 }
 
 function ConfBadge({ score }: { score?: number | string | null }) {
@@ -47,9 +62,11 @@ function ConfBadge({ score }: { score?: number | string | null }) {
     v >= 0.8 ? 'border-emerald-600 bg-emerald-500/15 text-emerald-800'
       : v >= 0.5 ? 'border-amber-600 bg-amber-500/15 text-amber-800'
         : 'border-slate-400 bg-slate-200 text-slate-800'
+  const Icon = v >= 0.8 ? CheckCircle2 : v >= 0.5 ? MinusCircle : null
   return (
     <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border', tone)}>
-      {v >= 0.8 ? '✓' : v >= 0.5 ? '~' : ''} {pct}
+      {Icon && <Icon className="w-3 h-3" />}
+      {pct}
     </span>
   )
 }
@@ -189,7 +206,7 @@ export default function KYCTab() {
         try {
           const data = JSON.parse(raw)
           if (evt === 'start') {
-            setIngestLog(l => [...l, { text: `▶ ${data.filename} (${(data.size_bytes / 1024).toFixed(1)} KB)`, tone: 'info' }])
+            setIngestLog(l => [...l, { text: `${data.filename} (${(data.size_bytes / 1024).toFixed(1)} KB)`, tone: 'info' }])
           } else if (evt === 'stage') {
             const stage = data.stage
             const status = data.status
@@ -209,21 +226,21 @@ export default function KYCTab() {
             }))
             if (stage === 'classify' && status === 'done') {
               setIngestLog(l => [...l, {
-                text: `${docIcon(data.document_type)} ${data.owner} → ${data.document_type} (${Math.round((data.confidence || 0) * 100)}%)`,
+                text: `${data.owner} → ${data.document_type} (${Math.round((data.confidence || 0) * 100)}%)`,
                 tone: 'done',
               }])
             }
           } else if (evt === 'done') {
             setStages(prev => ({ ...prev, store: { state: 'done', detail: `${data.chunks} chunks` } }))
             setIngestLog(l => [...l, {
-              text: `✓ ${data.owner} · ${data.document_type} · ${data.chunks} chunks → id ${data.kyc_document_id}`,
+              text: `${data.owner} · ${data.document_type} · ${data.chunks} chunks → id ${data.kyc_document_id}`,
               tone: 'done',
             }])
             refreshOwners()
             api.kycDocTypes().then(rows => setAllDocTypes(rows.map(r => r.document_type))).catch(() => undefined)
             onDone?.()
           } else if (evt === 'error') {
-            setIngestLog(l => [...l, { text: `✗ ${data.message || raw}`, tone: 'error' }])
+            setIngestLog(l => [...l, { text: data.message || raw, tone: 'error' }])
             onDone?.()
           }
         } catch {
@@ -231,7 +248,7 @@ export default function KYCTab() {
         }
       },
       (err) => {
-        setIngestLog(l => [...l, { text: `✗ ${String(err)}`, tone: 'error' }])
+        setIngestLog(l => [...l, { text: String(err), tone: 'error' }])
         onDone?.()
       },
     )
@@ -364,9 +381,17 @@ export default function KYCTab() {
               }
             }}
           />
-          {current && <span className="chip-accent text-[11px]">▶ {current}</span>}
+          {current && (
+            <span className="chip-accent text-[11px] inline-flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              {current}
+            </span>
+          )}
           {queue.map((f, i) => (
-            <span key={i} className="chip text-[11px]">⏳ {f.name}</span>
+            <span key={i} className="chip text-[11px] inline-flex items-center gap-1">
+              <Layers className="w-3 h-3" />
+              {f.name}
+            </span>
           ))}
         </div>
 
@@ -572,8 +597,9 @@ export default function KYCTab() {
               </button>
               {searching && <Loader2 className="w-4 h-4 animate-spin text-accent self-center" />}
             </div>
-            <div className="text-[10px] text-citi-blue/80">
-              💡 Try: PAN · phone · street address · account number · registration ID · email · any keyword
+            <div className="text-[10px] text-citi-blue/80 inline-flex items-center gap-1">
+              <Lightbulb className="w-3 h-3" />
+              Try: PAN · phone · street address · account number · registration ID · email · any keyword
             </div>
 
             {uError && (
@@ -642,7 +668,8 @@ export default function KYCTab() {
               >
                 <summary className="flex items-center gap-2 cursor-pointer list-none">
                   <ChevronRight className="w-3.5 h-3.5 text-citi-blue chev transition" />
-                  <span className="font-medium text-ink">👤 {g.owner}</span>
+                  <User className="w-3.5 h-3.5 text-citi-blue" />
+                  <span className="font-medium text-ink">{g.owner}</span>
                   <span className="chip ml-2">{g.docs.length} doc{g.docs.length === 1 ? '' : 's'}</span>
                 </summary>
                 <div className="mt-2 space-y-1.5 pl-5">
@@ -673,7 +700,7 @@ function DocItemCard({ doc }: { doc: any }) {
   return (
     <div className="border border-line rounded-md bg-bg-card p-2.5 hover:border-accent/60 transition">
       <div className="flex items-start gap-2">
-        <span className="text-base shrink-0">{docIcon(doc.document_type)}</span>
+        <DocIcon type={doc.document_type} className="w-5 h-5 text-accent shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-ink truncate" title={doc.document_name}>
             {doc.document_name}
@@ -719,7 +746,7 @@ function ExtractResultCard({ r }: { r: any }) {
   return (
     <div className="card-soft p-3 space-y-2">
       <div className="flex items-start gap-2">
-        <span className="text-xl">{docIcon(r.document_type)}</span>
+        <DocIcon type={r.document_type} className="w-6 h-6 text-accent shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-ink">{r.owner}</div>
           <div className="text-xs text-citi-blue">{r.document_name} · {r.document_type}</div>
@@ -732,8 +759,9 @@ function ExtractResultCard({ r }: { r: any }) {
         <ConfBadge score={r.confidence_score} />
       </div>
       <details open className="text-[11px]">
-        <summary className="cursor-pointer text-accent hover:text-accent-dark font-medium">
-          📋 Extracted Data ({Object.keys(cleanData).length} fields)
+        <summary className="cursor-pointer text-accent hover:text-accent-dark font-medium inline-flex items-center gap-1">
+          <ClipboardList className="w-3.5 h-3.5" />
+          Extracted Data ({Object.keys(cleanData).length} fields)
         </summary>
         <pre className="mt-2 bg-bg-soft border border-line rounded p-2 overflow-x-auto font-mono text-ink whitespace-pre-wrap">
           {JSON.stringify(cleanData, null, 2)}
@@ -754,7 +782,7 @@ function UniversalHitCard({ r }: { r: any }) {
   return (
     <div className="card-soft p-3 space-y-2">
       <div className="flex items-start gap-2">
-        <span className="text-xl">{docIcon(r.document_type)}</span>
+        <DocIcon type={r.document_type} className="w-6 h-6 text-accent shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-ink">{r.owner || '—'}</div>
           <div className="text-xs text-citi-blue">{r.document_name} · {r.document_type}</div>
@@ -765,8 +793,9 @@ function UniversalHitCard({ r }: { r: any }) {
         </div>
       </div>
       <div className="border-l-2 border-accent pl-2">
-        <div className="text-[10px] uppercase text-citi-blue font-semibold tracking-wider">
-          🔎 Matched: {cleanField}
+        <div className="text-[10px] uppercase text-citi-blue font-semibold tracking-wider inline-flex items-center gap-1">
+          <Search className="w-3 h-3" />
+          Matched: {cleanField}
         </div>
         <div className="text-sm text-ink mt-0.5 break-all">{r.matched_value}</div>
       </div>
