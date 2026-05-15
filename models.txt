@@ -1,0 +1,38 @@
+# Models to probe via Stellar and/or Vertex.
+# One name per line. Lines starting with `#` are skipped.
+# Add/remove freely — `python test_llm.py --models models.txt`.
+
+# ============================================================
+# Stellar (Citi internal) — chat & instruct
+# ============================================================
+Llama-4-Scout-17B-16E-Instruct
+Meta-Llama-3.3-70B-Instruct
+Meta-Llama-3.1-8B-Instruct
+Meta-Llama-3.1-70B-Instruct
+Mixtral-8x7B-Instruct-v0.1
+Mistral-7B-Instruct-v0.3
+# Codestral-22B-v0.1
+# Phi-3-medium-128k-instruct
+
+# ============================================================
+# Stellar — embeddings
+# ============================================================
+gte-large-en-v1.5
+# text-embedding-ada-002
+
+# ============================================================
+# Vertex AI (Google) — chat / generation
+# ============================================================
+gemini-2.5-flash
+gemini-2.5-pro
+gemini-2.0-flash-001
+gemini-2.0-flash-lite-001
+# gemini-1.5-pro
+# gemini-1.5-flash
+
+# ============================================================
+# Vertex AI — embeddings
+# ============================================================
+text-embedding-005
+text-embedding-004
+# text-multilingual-embedding-002
