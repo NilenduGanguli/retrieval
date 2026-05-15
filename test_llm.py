@@ -180,11 +180,53 @@ def test_vertex_embed(model: str, text: str, timeout: float) -> tuple[bool, floa
 # --------------------------------------------------------------------------- #
 # Driver
 # --------------------------------------------------------------------------- #
+_internal_vertex_client: Any = None
+
+
+def _internal_vertex() -> Any:
+    """Vertex via the internal corporate proxy, using get_llm.VertexGenAI."""
+    global _internal_vertex_client
+    if _internal_vertex_client is None:
+        import get_llm  # type: ignore
+        _internal_vertex_client = get_llm.VertexGenAI()
+    return _internal_vertex_client
+
+
+def test_vertex_internal_chat(model: str, prompt: str, timeout: float) -> tuple[bool, float, str]:
+    from google.genai import types
+    t0 = time.monotonic()
+    try:
+        resp = _internal_vertex().client.models.generate_content(
+            model=model,
+            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+            config=types.GenerateContentConfig(
+                temperature=0, max_output_tokens=32,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        text = (resp.text or "").replace("\n", " ").strip()
+        return True, (time.monotonic() - t0) * 1000, text[:80]
+    except Exception as exc:
+        return False, (time.monotonic() - t0) * 1000, str(exc)[:200]
+
+
+def test_vertex_internal_embed(model: str, text: str, timeout: float) -> tuple[bool, float, str]:
+    t0 = time.monotonic()
+    try:
+        resp = _internal_vertex().client.models.embed_content(model=model, contents=[text])
+        vals = getattr(resp.embeddings[0], "values", None) or []
+        return True, (time.monotonic() - t0) * 1000, f"dim={len(vals)}"
+    except Exception as exc:
+        return False, (time.monotonic() - t0) * 1000, str(exc)[:200]
+
+
 PROBES = {
     ("stellar", "chat"):  test_stellar_chat,
     ("stellar", "embed"): test_stellar_embed,
     ("vertex",  "chat"):  test_vertex_chat,
     ("vertex",  "embed"): test_vertex_embed,
+    ("vertex_internal", "chat"):  test_vertex_internal_chat,
+    ("vertex_internal", "embed"): test_vertex_internal_embed,
 }
 
 
@@ -197,8 +239,10 @@ def main() -> None:
     ap.add_argument("--models", "-f", type=Path, default=Path("models.txt"),
                     help="Text file of model names — one per line. '#' comments are skipped.")
     ap.add_argument("--provider", "-p",
-                    choices=["stellar", "vertex", "both", "auto"], default="auto",
-                    help="Which provider(s) to test. 'auto' picks from LLM_PROVIDER in .env.")
+                    choices=["stellar", "vertex", "vertex_internal", "both", "all", "auto"],
+                    default="auto",
+                    help="Which provider(s) to test. 'auto' picks from LLM_PROVIDER. "
+                         "'both' = stellar+vertex. 'all' = stellar+vertex+vertex_internal.")
     ap.add_argument("--task", "-t",
                     choices=["chat", "embed", "both"], default="both",
                     help="What kind of probe to run against each model.")
@@ -217,11 +261,15 @@ def main() -> None:
         sys.exit(f"no models found in {args.models} (after stripping blanks/comments)")
 
     if args.provider == "auto":
-        providers = [os.environ.get("LLM_PROVIDER", "stellar").lower()]
+        providers = [os.environ.get("LLM_PROVIDER", "vertex_internal").lower()]
     elif args.provider == "both":
         providers = ["stellar", "vertex"]
+    elif args.provider == "all":
+        providers = ["stellar", "vertex", "vertex_internal"]
     else:
         providers = [args.provider]
+    # Normalise "internal_vertex" alias → "vertex_internal"
+    providers = ["vertex_internal" if p == "internal_vertex" else p for p in providers]
 
     tasks = ["chat", "embed"] if args.task == "both" else [args.task]
 

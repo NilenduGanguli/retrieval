@@ -26,18 +26,22 @@ class Settings(BaseSettings):
     app_owner_role: str = Field(default="")
 
     # ---------- LLM provider selection ----------
-    # "stellar" → production path through get_llm.py (COIN OAuth, VDI-only)
-    # "vertex"  → local-test path via google-genai + a service-account JSON
-    llm_provider: str = Field(default="stellar")
+    # "vertex_internal" → production: Vertex via the internal corporate
+    #                     proxy (VERTEX_BASE_URL) using a COIN token,
+    #                     wrapped by get_llm.VertexGenAI. Use this on the VDI.
+    # "vertex"          → local dev: google-genai with a service-account JSON,
+    #                     talks directly to Google's Vertex API.
+    # "stellar"         → legacy: OpenAI-compatible Stellar (Llama/Mistral).
+    llm_provider: str = Field(default="vertex_internal")
 
-    # ---------- Stellar models ----------
+    # ---------- Stellar models (legacy — only used when llm_provider="stellar") ----------
     stellar_embedding_model: str = Field(default="gte-large-en-v1.5")
     stellar_final_gen_model: str = Field(default="Llama-4-Scout-17B-16E-Instruct")
     stellar_rerank_model: str = Field(default="Meta-Llama-3.3-70B-Instruct")
     stellar_fast_model: str = Field(default="Meta-Llama-3.1-8B-Instruct")
     stellar_contextual_model: str = Field(default="Llama-4-Scout-17B-16E-Instruct")
 
-    # ---------- Vertex (local-test) ----------
+    # ---------- Vertex (local dev, service-account JSON) ----------
     google_application_credentials: str = Field(default="")
     vertex_project: str = Field(default="")
     vertex_location: str = Field(default="us-central1")
@@ -46,6 +50,17 @@ class Settings(BaseSettings):
     vertex_rerank_model: str = Field(default="gemini-2.5-flash")
     vertex_fast_model: str = Field(default="gemini-2.5-flash")
     vertex_contextual_model: str = Field(default="gemini-2.5-flash")
+
+    # ---------- Internal-Vertex (production, COIN-token via get_llm.VertexGenAI) ----------
+    # Everything defaults to gemini-2.0-flash-001 — small, fast, supports
+    # structured outputs + tool calling, plenty for retrieval orchestration.
+    # Override individual roles in .env if you want a heavier model for the
+    # final answer.
+    internal_vertex_embedding_model: str = Field(default="text-embedding-005")
+    internal_vertex_final_gen_model: str = Field(default="gemini-2.0-flash-001")
+    internal_vertex_rerank_model: str = Field(default="gemini-2.0-flash-001")
+    internal_vertex_fast_model: str = Field(default="gemini-2.0-flash-001")
+    internal_vertex_contextual_model: str = Field(default="gemini-2.0-flash-001")
 
     # ---------- Retrieval defaults ----------
     rag_topk_dense: int = 50
