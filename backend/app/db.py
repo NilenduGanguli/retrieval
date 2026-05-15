@@ -205,7 +205,7 @@ async def ensure_contextual_embedding_column() -> None:
         try:
             await conn.execute(
                 f'ALTER TABLE "{schema}".chunk_context '
-                f"ADD COLUMN context_embedding vector({dim})"
+                f"ADD COLUMN context_embedding {vector_type()}({dim})"
             )
             await conn.execute(
                 f'CREATE INDEX IF NOT EXISTS idx_chunk_context_embedding_hnsw '
@@ -338,7 +338,7 @@ async def ensure_schema_and_tables() -> dict:
                 try:
                     await conn.execute(
                         f'ALTER TABLE "{schema}"."{table}" '
-                        f"ADD COLUMN IF NOT EXISTS embedding vector(768)"
+                        f'ADD COLUMN IF NOT EXISTS embedding {vector_type()}(768)'
                     )
                     await conn.execute(
                         f'CREATE INDEX IF NOT EXISTS {table}_hnsw_idx '

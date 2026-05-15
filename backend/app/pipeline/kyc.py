@@ -705,7 +705,7 @@ async def ensure_kyc_embedding_column() -> None:
             except Exception:
                 pass
         await conn.execute(
-            f'ALTER TABLE "{schema}".kyc_chunks ADD COLUMN embedding vector({dim})'
+            f'ALTER TABLE "{schema}".kyc_chunks ADD COLUMN embedding {vector_type()}({dim})'
         )
         await conn.execute(
             f'CREATE INDEX IF NOT EXISTS idx_kyc_chunks_hnsw '
