@@ -172,18 +172,12 @@ def _run_chunker(cfg: dict) -> dict:
 
 
 def _embed(texts: List[str]) -> List[List[float]]:
-    """Embed a batch — provider chosen by `settings.llm_provider`.
+    """Embed a batch with Stellar (gte-large-en-v1.5).
 
-      vertex_internal → InternalVertexClient (Vertex via corp proxy,
-                        get_llm.VertexGenAI, defaults to text-embedding-005)
-      wega / stellar   → StellarClient (Stellar API, gte-large-en-v1.5)
-
+    Delegates to the local stellar_client copy so this service has no
+    dependency on the backend package or an external `llm_gateway` wheel.
     Called from inside `run_in_executor`, so we use the sync variant.
     """
-    provider = (settings.llm_provider or "").lower()
-    if provider in ("vertex_internal", "internal_vertex"):
-        from .internal_vertex_client import get_internal_vertex
-        return get_internal_vertex().embed_sync(list(texts))
     return get_stellar().embed_sync(list(texts))
 
 

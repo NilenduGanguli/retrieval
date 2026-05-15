@@ -69,22 +69,15 @@ def _check_secret(value: str | None) -> None:
 
 @app.get("/health")
 async def health() -> dict:
-    provider = (settings.llm_provider or "").lower()
-    emb_model = (
-        settings.internal_vertex_embedding_model
-        if provider in ("vertex_internal", "internal_vertex")
-        else settings.vertex_embedding_model
-    )
     return {
         "status": "ok",
         "service": "ingest_remote",
         "llm_provider": settings.llm_provider,
-        "embedding_model": emb_model,
         "azure_di_configured": bool(settings.azure_di_key),
         "vertex_project": settings.vertex_project or None,
         "vertex_location": settings.vertex_location,
+        "vertex_embedding_model": settings.vertex_embedding_model,
         "pg_database": settings.pg_database,
-        "pg_schema": settings.pg_schema,
         "pg_index": settings.pg_index,
         "s3_enabled": settings.s3_enabled,
         "s3_bucket": settings.s3_bucket if settings.s3_enabled else None,
@@ -119,16 +112,10 @@ async def ingest(
     async def progress_cb(payload: dict) -> None:
         await queue.put(payload)
 
-    # Provider dispatch:
-    #   vertex          → pypdf chunker + Vertex (service-account) — local dev
-    #   vertex_internal → WEGA chunker + InternalVertex embeddings — production
-    #   wega / stellar   → WEGA chunker + Stellar embeddings — legacy
-    provider = (settings.llm_provider or "vertex_internal").lower()
+    provider = (settings.llm_provider or "wega").lower()
     if provider == "vertex":
         runner = ingest_pdf_local
     else:
-        # Both vertex_internal and wega/stellar go through ingest_pdf;
-        # ingest_core._embed picks the right embedding backend.
         runner = ingest_pdf
 
     async def _worker() -> None:

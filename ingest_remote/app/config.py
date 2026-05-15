@@ -22,13 +22,9 @@ class RemoteIngestSettings(BaseSettings):
     shared_secret: str = Field(default="")
 
     # ---------- Provider selection ----------
-    # "vertex_internal" → WEGA chunker + Internal Vertex embeddings via the
-    #                     corporate proxy (uses get_llm.VertexGenAI). RECOMMENDED.
-    # "wega"            → legacy: WEGA chunker + Stellar embeddings
-    #                     (only if you still need the Stellar path).
-    # "vertex"          → local dev: pypdf chunker + service-account Vertex
-    #                     (no WEGA wheel required).
-    llm_provider: str = Field(default="vertex_internal")
+    # "wega"   → run the internal WegaChunker + StellarGenAI embeddings
+    # "vertex" → pypdf-based chunking + Google Vertex AI embeddings (local test)
+    llm_provider: str = Field(default="wega")
 
     # ---------- WEGA chunker (used when llm_provider="wega") ----------
     azure_di_endpoint: str = Field(default="http://sd-jibs-35nc.nam.nsroot.net:5000")
@@ -43,9 +39,6 @@ class RemoteIngestSettings(BaseSettings):
     vertex_project: str = Field(default="")
     vertex_location: str = Field(default="us-central1")
     vertex_embedding_model: str = Field(default="text-embedding-005")
-
-    # ---------- Internal-Vertex (production, COIN-token via get_llm.VertexGenAI) ----------
-    internal_vertex_embedding_model: str = Field(default="text-embedding-005")
 
     # Local pypdf chunker tuning
     local_chunk_max_chars: int = Field(default=1500)
