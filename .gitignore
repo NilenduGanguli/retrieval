@@ -65,3 +65,6 @@ ingest_remote/wheels/
 
 # MinIO local data dir (don't commit local object store state)
 .minio-data/
+
+# Serena MCP tooling cache
+.serena/
