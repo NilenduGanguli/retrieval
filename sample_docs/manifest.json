@@ -9,7 +9,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000013/aapl-20260328.htm",
     "file": "AAPL_10-Q_2026-05-01_000032019326000013.html",
-    "bytes": 999810
+    "bytes": 999810,
+    "html_file": "AAPL_10-Q_2026-05-01_000032019326000013.html",
+    "pdf_file": "AAPL_10-Q_2026-05-01_000032019326000013.pdf",
+    "pdf_bytes": 313306
   },
   {
     "ticker": "AAPL",
@@ -21,7 +24,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000011/aapl-20260430.htm",
     "file": "AAPL_8-K_2026-04-30_000032019326000011.html",
-    "bytes": 37639
+    "bytes": 37639,
+    "html_file": "AAPL_8-K_2026-04-30_000032019326000011.html",
+    "pdf_file": "AAPL_8-K_2026-04-30_000032019326000011.pdf",
+    "pdf_bytes": 94258
   },
   {
     "ticker": "AAPL",
@@ -33,7 +39,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
     "file": "AAPL_10-K_2025-10-31_000032019325000079.html",
-    "bytes": 1520208
+    "bytes": 1520208,
+    "html_file": "AAPL_10-K_2025-10-31_000032019325000079.html",
+    "pdf_file": "AAPL_10-K_2025-10-31_000032019325000079.pdf",
+    "pdf_bytes": 597911
   },
   {
     "ticker": "MSFT",
@@ -45,7 +54,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526258667/d26760d8k.htm",
     "file": "MSFT_8-K_2026-06-05_000119312526258667.html",
-    "bytes": 26785
+    "bytes": 26785,
+    "html_file": "MSFT_8-K_2026-06-05_000119312526258667.html",
+    "pdf_file": "MSFT_8-K_2026-06-05_000119312526258667.pdf",
+    "pdf_bytes": 179267
   },
   {
     "ticker": "MSFT",
@@ -57,7 +69,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526191507/msft-20260331.htm",
     "file": "MSFT_10-Q_2026-04-29_000119312526191507.html",
-    "bytes": 7731948
+    "bytes": 7731948,
+    "html_file": "MSFT_10-Q_2026-04-29_000119312526191507.html",
+    "pdf_file": "MSFT_10-Q_2026-04-29_000119312526191507.pdf",
+    "pdf_bytes": 942359
   },
   {
     "ticker": "MSFT",
@@ -69,7 +84,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm",
     "file": "MSFT_10-K_2025-07-30_000095017025100235.html",
-    "bytes": 8158067
+    "bytes": 8158067,
+    "html_file": "MSFT_10-K_2025-07-30_000095017025100235.html",
+    "pdf_file": "MSFT_10-K_2025-07-30_000095017025100235.pdf",
+    "pdf_bytes": 1394424
   },
   {
     "ticker": "AMZN",
@@ -81,7 +99,10 @@
     "description": "FORM 8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000110465926073562/tm2613616d5_8k.htm",
     "file": "AMZN_8-K_2026-06-12_000110465926073562.html",
-    "bytes": 60941
+    "bytes": 60941,
+    "html_file": "AMZN_8-K_2026-06-12_000110465926073562.html",
+    "pdf_file": "AMZN_8-K_2026-06-12_000110465926073562.pdf",
+    "pdf_bytes": 178609
   },
   {
     "ticker": "AMZN",
@@ -93,7 +114,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000014/amzn-20260331.htm",
     "file": "AMZN_10-Q_2026-04-30_000101872426000014.html",
-    "bytes": 1241244
+    "bytes": 1241244,
+    "html_file": "AMZN_10-Q_2026-04-30_000101872426000014.html",
+    "pdf_file": "AMZN_10-Q_2026-04-30_000101872426000014.pdf",
+    "pdf_bytes": 804228
   },
   {
     "ticker": "AMZN",
@@ -105,7 +129,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000004/amzn-20251231.htm",
     "file": "AMZN_10-K_2026-02-06_000101872426000004.html",
-    "bytes": 1968342
+    "bytes": 1968342,
+    "html_file": "AMZN_10-K_2026-02-06_000101872426000004.html",
+    "pdf_file": "AMZN_10-K_2026-02-06_000101872426000004.pdf",
+    "pdf_bytes": 1055526
   },
   {
     "ticker": "GOOGL",
@@ -117,7 +144,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000119312526267578/d57679d8k.htm",
     "file": "GOOGL_8-K_2026-06-11_000119312526267578.html",
-    "bytes": 119785
+    "bytes": 119785,
+    "html_file": "GOOGL_8-K_2026-06-11_000119312526267578.html",
+    "pdf_file": "GOOGL_8-K_2026-06-11_000119312526267578.pdf",
+    "pdf_bytes": 234326
   },
   {
     "ticker": "GOOGL",
@@ -129,7 +159,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000048/goog-20260331.htm",
     "file": "GOOGL_10-Q_2026-04-30_000165204426000048.html",
-    "bytes": 1714713
+    "bytes": 1714713,
+    "html_file": "GOOGL_10-Q_2026-04-30_000165204426000048.html",
+    "pdf_file": "GOOGL_10-Q_2026-04-30_000165204426000048.pdf",
+    "pdf_bytes": 727727
   },
   {
     "ticker": "GOOGL",
@@ -141,7 +174,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm",
     "file": "GOOGL_10-K_2026-02-05_000165204426000018.html",
-    "bytes": 2616499
+    "bytes": 2616499,
+    "html_file": "GOOGL_10-K_2026-02-05_000165204426000018.html",
+    "pdf_file": "GOOGL_10-K_2026-02-05_000165204426000018.pdf",
+    "pdf_bytes": 1187094
   },
   {
     "ticker": "META",
@@ -153,7 +189,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026039193/meta-20260527.htm",
     "file": "META_8-K_2026-05-29_000162828026039193.html",
-    "bytes": 79404
+    "bytes": 79404,
+    "html_file": "META_8-K_2026-05-29_000162828026039193.html",
+    "pdf_file": "META_8-K_2026-05-29_000162828026039193.pdf",
+    "pdf_bytes": 264320
   },
   {
     "ticker": "META",
@@ -165,7 +204,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026028526/meta-20260331.htm",
     "file": "META_10-Q_2026-04-30_000162828026028526.html",
-    "bytes": 1485906
+    "bytes": 1485906,
+    "html_file": "META_10-Q_2026-04-30_000162828026028526.html",
+    "pdf_file": "META_10-Q_2026-04-30_000162828026028526.pdf",
+    "pdf_bytes": 1307673
   },
   {
     "ticker": "META",
@@ -177,7 +219,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/meta-20251231.htm",
     "file": "META_10-K_2026-01-29_000162828026003942.html",
-    "bytes": 2371750
+    "bytes": 2371750,
+    "html_file": "META_10-K_2026-01-29_000162828026003942.html",
+    "pdf_file": "META_10-K_2026-01-29_000162828026003942.pdf",
+    "pdf_bytes": 1759531
   },
   {
     "ticker": "TSLA",
@@ -189,7 +234,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026026673/tsla-20260331.htm",
     "file": "TSLA_10-Q_2026-04-23_000162828026026673.html",
-    "bytes": 1240759
+    "bytes": 1240759,
+    "html_file": "TSLA_10-Q_2026-04-23_000162828026026673.html",
+    "pdf_file": "TSLA_10-Q_2026-04-23_000162828026026673.pdf",
+    "pdf_bytes": 718209
   },
   {
     "ticker": "TSLA",
@@ -201,7 +249,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026026551/tsla-20260422.htm",
     "file": "TSLA_8-K_2026-04-22_000162828026026551.html",
-    "bytes": 27615
+    "bytes": 27615,
+    "html_file": "TSLA_8-K_2026-04-22_000162828026026551.html",
+    "pdf_file": "TSLA_8-K_2026-04-22_000162828026026551.pdf",
+    "pdf_bytes": 187849
   },
   {
     "ticker": "TSLA",
@@ -213,7 +264,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026003952/tsla-20251231.htm",
     "file": "TSLA_10-K_2026-01-29_000162828026003952.html",
-    "bytes": 2391529
+    "bytes": 2391529,
+    "html_file": "TSLA_10-K_2026-01-29_000162828026003952.html",
+    "pdf_file": "TSLA_10-K_2026-01-29_000162828026003952.pdf",
+    "pdf_bytes": 1312687
   },
   {
     "ticker": "NVDA",
@@ -225,7 +279,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000052/nvda-20260426.htm",
     "file": "NVDA_10-Q_2026-05-20_000104581026000052.html",
-    "bytes": 1167053
+    "bytes": 1167053,
+    "html_file": "NVDA_10-Q_2026-05-20_000104581026000052.html",
+    "pdf_file": "NVDA_10-Q_2026-05-20_000104581026000052.pdf",
+    "pdf_bytes": 421083
   },
   {
     "ticker": "NVDA",
@@ -237,7 +294,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000051/nvda-20260520.htm",
     "file": "NVDA_8-K_2026-05-20_000104581026000051.html",
-    "bytes": 26803
+    "bytes": 26803,
+    "html_file": "NVDA_8-K_2026-05-20_000104581026000051.html",
+    "pdf_file": "NVDA_8-K_2026-05-20_000104581026000051.pdf",
+    "pdf_bytes": 66570
   },
   {
     "ticker": "NVDA",
@@ -249,7 +309,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm",
     "file": "NVDA_10-K_2026-02-25_000104581026000021.html",
-    "bytes": 1967816
+    "bytes": 1967816,
+    "html_file": "NVDA_10-K_2026-02-25_000104581026000021.html",
+    "pdf_file": "NVDA_10-K_2026-02-25_000104581026000021.pdf",
+    "pdf_bytes": 824392
   },
   {
     "ticker": "BRK-B",
@@ -261,7 +324,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1067983/000119312526212148/d74313d8k.htm",
     "file": "BRK-B_8-K_2026-05-07_000119312526212148.html",
-    "bytes": 65962
+    "bytes": 65962,
+    "html_file": "BRK-B_8-K_2026-05-07_000119312526212148.html",
+    "pdf_file": "BRK-B_8-K_2026-05-07_000119312526212148.pdf",
+    "pdf_bytes": 202584
   },
   {
     "ticker": "BRK-B",
@@ -273,7 +339,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1067983/000119312526202243/brka-20260331.htm",
     "file": "BRK-B_10-Q_2026-05-04_000119312526202243.html",
-    "bytes": 4949117
+    "bytes": 4949117,
+    "html_file": "BRK-B_10-Q_2026-05-04_000119312526202243.html",
+    "pdf_file": "BRK-B_10-Q_2026-05-04_000119312526202243.pdf",
+    "pdf_bytes": 876992
   },
   {
     "ticker": "BRK-B",
@@ -285,7 +354,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1067983/000119312526083899/brka-20251231.htm",
     "file": "BRK-B_10-K_2026-03-02_000119312526083899.html",
-    "bytes": 10396820
+    "bytes": 10396820,
+    "html_file": "BRK-B_10-K_2026-03-02_000119312526083899.html",
+    "pdf_file": "BRK-B_10-K_2026-03-02_000119312526083899.pdf",
+    "pdf_bytes": 1810921
   },
   {
     "ticker": "JPM",
@@ -297,7 +369,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/19617/000119312526253533/d113536d8k.htm",
     "file": "JPM_8-K_2026-06-02_000119312526253533.html",
-    "bytes": 45789
+    "bytes": 45789,
+    "html_file": "JPM_8-K_2026-06-02_000119312526253533.html",
+    "pdf_file": "JPM_8-K_2026-06-02_000119312526253533.pdf",
+    "pdf_bytes": 193637
   },
   {
     "ticker": "JPM",
@@ -309,7 +384,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/19617/000162828026029344/jpm-20260331.htm",
     "file": "JPM_10-Q_2026-05-01_000162828026029344.html",
-    "bytes": 9164610
+    "bytes": 9164610,
+    "html_file": "JPM_10-Q_2026-05-01_000162828026029344.html",
+    "pdf_file": "JPM_10-Q_2026-05-01_000162828026029344.pdf",
+    "pdf_bytes": 1992317
   },
   {
     "ticker": "JPM",
@@ -321,7 +399,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm",
     "file": "JPM_10-K_2026-02-13_000162828026008131.html",
-    "bytes": 12927325
+    "bytes": 12927325,
+    "html_file": "JPM_10-K_2026-02-13_000162828026008131.html",
+    "pdf_file": "JPM_10-K_2026-02-13_000162828026008131.pdf",
+    "pdf_bytes": 3309411
   },
   {
     "ticker": "JNJ",
@@ -333,7 +414,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/200406/000020040626000089/jnj-20260423.htm",
     "file": "JNJ_8-K_2026-04-28_000020040626000089.html",
-    "bytes": 81639
+    "bytes": 81639,
+    "html_file": "JNJ_8-K_2026-04-28_000020040626000089.html",
+    "pdf_file": "JNJ_8-K_2026-04-28_000020040626000089.pdf",
+    "pdf_bytes": 113828
   },
   {
     "ticker": "JNJ",
@@ -345,7 +429,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/200406/000020040626000087/jnj-20260329.htm",
     "file": "JNJ_10-Q_2026-04-22_000020040626000087.html",
-    "bytes": 1932046
+    "bytes": 1932046,
+    "html_file": "JNJ_10-Q_2026-04-22_000020040626000087.html",
+    "pdf_file": "JNJ_10-Q_2026-04-22_000020040626000087.pdf",
+    "pdf_bytes": 510401
   },
   {
     "ticker": "JNJ",
@@ -357,7 +444,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/200406/000020040626000016/jnj-20251228.htm",
     "file": "JNJ_10-K_2026-02-11_000020040626000016.html",
-    "bytes": 3701587
+    "bytes": 3701587,
+    "html_file": "JNJ_10-K_2026-02-11_000020040626000016.html",
+    "pdf_file": "JNJ_10-K_2026-02-11_000020040626000016.pdf",
+    "pdf_bytes": 939241
   },
   {
     "ticker": "V",
@@ -369,7 +459,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000119312526219432/d64238d8k.htm",
     "file": "V_8-K_2026-05-12_000119312526219432.html",
-    "bytes": 41546
+    "bytes": 41546,
+    "html_file": "V_8-K_2026-05-12_000119312526219432.html",
+    "pdf_file": "V_8-K_2026-05-12_000119312526219432.pdf",
+    "pdf_bytes": 235204
   },
   {
     "ticker": "V",
@@ -381,7 +474,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000140316126000079/v-20260331.htm",
     "file": "V_10-Q_2026-04-29_000140316126000079.html",
-    "bytes": 1839669
+    "bytes": 1839669,
+    "html_file": "V_10-Q_2026-04-29_000140316126000079.html",
+    "pdf_file": "V_10-Q_2026-04-29_000140316126000079.pdf",
+    "pdf_bytes": 767891
   },
   {
     "ticker": "V",
@@ -393,7 +489,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000140316125000089/v-20250930.htm",
     "file": "V_10-K_2025-11-06_000140316125000089.html",
-    "bytes": 2909461
+    "bytes": 2909461,
+    "html_file": "V_10-K_2025-11-06_000140316125000089.html",
+    "pdf_file": "V_10-K_2025-11-06_000140316125000089.pdf",
+    "pdf_bytes": 1611959
   },
   {
     "ticker": "WMT",
@@ -405,7 +504,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000111/wmt-20260604.htm",
     "file": "WMT_8-K_2026-06-05_000010416926000111.html",
-    "bytes": 74901
+    "bytes": 74901,
+    "html_file": "WMT_8-K_2026-06-05_000010416926000111.html",
+    "pdf_file": "WMT_8-K_2026-06-05_000010416926000111.pdf",
+    "pdf_bytes": 256229
   },
   {
     "ticker": "WMT",
@@ -417,7 +519,10 @@
     "description": "10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000102/wmt-20260430.htm",
     "file": "WMT_10-Q_2026-05-29_000010416926000102.html",
-    "bytes": 1154833
+    "bytes": 1154833,
+    "html_file": "WMT_10-Q_2026-05-29_000010416926000102.html",
+    "pdf_file": "WMT_10-Q_2026-05-29_000010416926000102.pdf",
+    "pdf_bytes": 744820
   },
   {
     "ticker": "WMT",
@@ -429,7 +534,10 @@
     "description": "10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000055/wmt-20260131.htm",
     "file": "WMT_10-K_2026-03-13_000010416926000055.html",
-    "bytes": 2323981
+    "bytes": 2323981,
+    "html_file": "WMT_10-K_2026-03-13_000010416926000055.html",
+    "pdf_file": "WMT_10-K_2026-03-13_000010416926000055.pdf",
+    "pdf_bytes": 1254168
   },
   {
     "ticker": "XOM",
@@ -441,7 +549,10 @@
     "description": "FORM 8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000078/xom-20260527.htm",
     "file": "XOM_8-K_2026-05-29_000003408826000078.html",
-    "bytes": 83441
+    "bytes": 83441,
+    "html_file": "XOM_8-K_2026-05-29_000003408826000078.html",
+    "pdf_file": "XOM_8-K_2026-05-29_000003408826000078.pdf",
+    "pdf_bytes": 279894
   },
   {
     "ticker": "XOM",
@@ -453,7 +564,10 @@
     "description": "FORM 10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000067/xom-20260331.htm",
     "file": "XOM_10-Q_2026-05-04_000003408826000067.html",
-    "bytes": 2037950
+    "bytes": 2037950,
+    "html_file": "XOM_10-Q_2026-05-04_000003408826000067.html",
+    "pdf_file": "XOM_10-Q_2026-05-04_000003408826000067.pdf",
+    "pdf_bytes": 709722
   },
   {
     "ticker": "XOM",
@@ -465,7 +579,10 @@
     "description": "FORM 10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000045/xom-20251231.htm",
     "file": "XOM_10-K_2026-02-18_000003408826000045.html",
-    "bytes": 5591068
+    "bytes": 5591068,
+    "html_file": "XOM_10-K_2026-02-18_000003408826000045.html",
+    "pdf_file": "XOM_10-K_2026-02-18_000003408826000045.pdf",
+    "pdf_bytes": 1751988
   },
   {
     "ticker": "PG",
@@ -477,7 +594,10 @@
     "description": "FY2526 Q3 JFM 10-Q",
     "source_url": "https://www.sec.gov/Archives/edgar/data/80424/000008042426000060/pg-20260331.htm",
     "file": "PG_10-Q_2026-04-24_000008042426000060.html",
-    "bytes": 1537828
+    "bytes": 1537828,
+    "html_file": "PG_10-Q_2026-04-24_000008042426000060.html",
+    "pdf_file": "PG_10-Q_2026-04-24_000008042426000060.pdf",
+    "pdf_bytes": 818797
   },
   {
     "ticker": "PG",
@@ -489,7 +609,10 @@
     "description": "8-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/80424/000008042426000057/pg-20260424.htm",
     "file": "PG_8-K_2026-04-24_000008042426000057.html",
-    "bytes": 54412
+    "bytes": 54412,
+    "html_file": "PG_8-K_2026-04-24_000008042426000057.html",
+    "pdf_file": "PG_8-K_2026-04-24_000008042426000057.pdf",
+    "pdf_bytes": 161305
   },
   {
     "ticker": "PG",
@@ -501,6 +624,9 @@
     "description": "FY2425 10-K",
     "source_url": "https://www.sec.gov/Archives/edgar/data/80424/000008042425000076/pg-20250630.htm",
     "file": "PG_10-K_2025-08-04_000008042425000076.html",
-    "bytes": 2491287
+    "bytes": 2491287,
+    "html_file": "PG_10-K_2025-08-04_000008042425000076.html",
+    "pdf_file": "PG_10-K_2025-08-04_000008042425000076.pdf",
+    "pdf_bytes": 1370444
   }
 ]

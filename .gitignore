@@ -35,6 +35,8 @@ tmp/
 data/
 uploads/
 *.pdf
+# ...but keep the SEC EDGAR sample filing PDFs
+!sample_docs/*.pdf
 
 # Editor
 .vscode/
