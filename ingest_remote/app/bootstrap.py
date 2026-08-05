@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 # --- DDL templates (schema name is interpolated at runtime from settings) ----
 # SCHEMA_NAME is read lazily via settings.pg_schema so any env override
 # (PG_SCHEMA=...) flows through to every CREATE/INSERT.
+# {embedding_dim} is likewise interpolated from settings.embedding_dim — the
+# fleet-wide vector width shared with the retrieval backend (see _ensure_tables).
 def _schema() -> str:
     return settings.pg_schema
 
@@ -238,7 +240,14 @@ def _ensure_tables(conn, pgvector_schema: str | None) -> dict[str, bool]:
     to creating chunk_embeddings WITHOUT the embedding column — the
     table still serves retrieval lookups via FTS / contextual paths."""
     schema = _schema()
-    emb_dim = 768
+    # The vector dimension is part of the CROSS-SERVICE CONTRACT: this
+    # service, the retrieval backend, and document-enrichment-services all
+    # read/write the same chunk_embeddings.embedding column, so the column
+    # must be sized for the fleet-wide embedding model (gte-large-en-v1.5 →
+    # 1024). Never hard-code it here — a mismatch either fails the INSERT
+    # outright or, worse, silently splits the index across two models.
+    # See docs/EMBEDDING_MODEL.md.
+    emb_dim = settings.embedding_dim
     state: dict[str, bool] = {}
     with conn.cursor() as cur:
         _maybe_set_role(cur)

@@ -34,10 +34,34 @@ class RemoteIngestSettings(BaseSettings):
     detect_pii: bool = Field(default=True)
     extract_images: bool = Field(default=False)
 
+    # ---------- Embedding model (FLEET-WIDE — authoritative) ----------
+    # ONE embedding model everywhere: production (Stellar/WEGA), local, and
+    # test. This service and the retrieval backend write into the SAME
+    # pgvector column, so the model *and* its dimension are a cross-service
+    # contract — vectors of different dimensions cannot coexist in one column,
+    # and vectors from different models are not comparable even at equal dim.
+    # Changing either value requires re-embedding every existing row.
+    # See docs/EMBEDDING_MODEL.md.
+    embedding_model: str = Field(default="gte-large-en-v1.5")
+    embedding_dim: int = Field(default=1024)
+
+    # Local / self-hosted serving of the SAME gte model, so locally produced
+    # vectors are interchangeable with production ones. Point this at an
+    # OpenAI-compatible endpoint (POST {base_url}/embeddings) or a Text
+    # Embeddings Inference server (POST {base_url}/embed).
+    # Leave blank to disable the local HTTP embedding path.
+    embedding_base_url: str = Field(default="")
+    embedding_api_key: str = Field(default="")
+    embedding_api_style: str = Field(default="openai")  # "openai" | "tei"
+
     # ---------- Vertex (used when llm_provider="vertex") ----------
     google_application_credentials: str = Field(default="")
     vertex_project: str = Field(default="")
     vertex_location: str = Field(default="us-central1")
+    # LEGACY / fallback-only — text-embedding-005 is 768-D and is NOT
+    # fleet-compatible with the 1024-D gte column. Kept so anyone mid-migration
+    # can still read an old 768-D index; do NOT use it to write into a
+    # gte-sized column. Use embedding_base_url (gte over OpenAI/TEI) instead.
     vertex_embedding_model: str = Field(default="text-embedding-005")
 
     # Local pypdf chunker tuning
