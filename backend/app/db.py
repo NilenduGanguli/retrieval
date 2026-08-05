@@ -68,18 +68,27 @@ async def init_pool() -> asyncpg.Pool:
     global _pool
     if _pool is not None:
         return _pool
+    # Pool sizing is per-worker. Total connections to Postgres = workers * max_size.
+    # Override via env when total approaches Postgres `max_connections`.
+    import os as _os
+    _min = int(_os.environ.get("PG_POOL_MIN", "5"))
+    _max = int(_os.environ.get("PG_POOL_MAX", "30"))
     _pool = await asyncpg.create_pool(
         host=settings.pg_host,
         port=settings.pg_port,
         user=settings.pg_user,
         password=settings.pg_password,
         database=settings.pg_database,
-        min_size=2,
-        max_size=10,
+        min_size=_min,
+        max_size=_max,
         init=_init_conn,
         command_timeout=60,
+        max_inactive_connection_lifetime=300,
     )
-    logger.info("PG pool ready on %s:%s/%s", settings.pg_host, settings.pg_port, settings.pg_database)
+    logger.info(
+        "PG pool ready on %s:%s/%s (min=%d max=%d)",
+        settings.pg_host, settings.pg_port, settings.pg_database, _min, _max,
+    )
     return _pool
 
 

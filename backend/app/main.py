@@ -1,8 +1,10 @@
 """FastAPI application entrypoint."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,6 +12,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+try:
+    from fastapi.responses import ORJSONResponse as _DefaultResponse
+except ImportError:  # orjson not installed → fall back to stdlib JSON.
+    from fastapi.responses import JSONResponse as _DefaultResponse
 
 from .config import settings
 from .db import (
@@ -34,6 +41,21 @@ async def lifespan(app: FastAPI):
     logger.info("starting up...")
     app.state.db_ready = False
     app.state.s3_ready = False
+    # Pump up the default executor — every sync LLM / embedding / OCR call
+    # goes through loop.run_in_executor(None, ...). Default pool is small
+    # (~6 threads on 2 vCPUs); a RAG workload wants 32+ so concurrent
+    # requests don't block on the executor's queue.
+    _executor_workers = int(os.environ.get("APP_EXECUTOR_WORKERS", "64"))
+    try:
+        asyncio.get_running_loop().set_default_executor(
+            ThreadPoolExecutor(
+                max_workers=_executor_workers,
+                thread_name_prefix="app-exec",
+            )
+        )
+        logger.info("default executor sized to %d threads", _executor_workers)
+    except Exception:
+        logger.exception("failed to size default executor (continuing with default)")
     try:
         await init_pool()
         # 1. Schema + base table bootstrap (creates schema/table on a fresh DB)
@@ -84,6 +106,9 @@ app = FastAPI(
     version="0.1.0",
     description="Hybrid retrieval + LLM listwise rerank + contextual chunks + CRAG.",
     lifespan=lifespan,
+    # orjson when available — significantly faster JSON serialization on big
+    # responses (retrieve, chunks endpoints). Falls back to stdlib JSON.
+    default_response_class=_DefaultResponse,
 )
 
 app.add_middleware(

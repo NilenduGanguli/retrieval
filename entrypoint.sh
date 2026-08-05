@@ -130,8 +130,42 @@ if [[ "${ENTRYPOINT_SMOKE_CHECK:-false}" == "true" ]] && [[ -f backend/smoke_che
 fi
 
 # ── 5. Launch backend ─────────────────────────────────────────────────────
+# Worker count: pick up APP_WORKERS if set; otherwise default to (nproc * 2)
+# which is the right ballpark for an I/O-bound async FastAPI app. Honour
+# 2000m-style cgroup CPU limits when nproc reads from /proc/cpuinfo by using
+# python's os.sched_getaffinity / cpu_count.
+detect_cpus() {
+    "$PYTHON" - <<'PY' 2>/dev/null || echo "2"
+import os
+try:
+    n = len(os.sched_getaffinity(0))
+except (AttributeError, OSError):
+    n = os.cpu_count() or 2
+print(max(1, n))
+PY
+}
+CPUS="$(detect_cpus)"
+DEFAULT_WORKERS=$(( CPUS > 0 ? CPUS * 2 : 2 ))
+APP_WORKERS="${APP_WORKERS:-$DEFAULT_WORKERS}"
+
+# Fast I/O stack — fall back gracefully if uvloop/httptools aren't installed.
+LOOP_FLAG=""
+HTTP_FLAG=""
+if "$PYTHON" -c "import uvloop" >/dev/null 2>&1; then
+    LOOP_FLAG="--loop uvloop"
+fi
+if "$PYTHON" -c "import httptools" >/dev/null 2>&1; then
+    HTTP_FLAG="--http httptools"
+fi
+
+# Access log noise off in prod by default (override with APP_ACCESS_LOG=true).
+ACCESS_LOG_FLAG="--no-access-log"
+if [[ "${APP_ACCESS_LOG:-false}" == "true" ]]; then
+    ACCESS_LOG_FLAG=""
+fi
+
 RELOAD_FLAG=""
-WORKERS_FLAG="--workers 1"
+WORKERS_FLAG="--workers $APP_WORKERS"
 if [[ "$DEV_MODE" == "true" ]]; then
     RELOAD_FLAG="--reload"
     WORKERS_FLAG=""   # --reload is incompatible with multi-workers
@@ -139,7 +173,7 @@ if [[ "$DEV_MODE" == "true" ]]; then
     log "  → frontend dev: http://localhost:5173"
     log "  → backend api : http://localhost:$PORT/api/health"
 else
-    log "starting backend on $HOST:$PORT"
+    log "starting backend on $HOST:$PORT (cpus=$CPUS workers=$APP_WORKERS)"
     log "  → ui: http://localhost:$PORT"
 fi
 
@@ -147,4 +181,7 @@ exec "$PYTHON" -m uvicorn backend.app.main:app \
     --host "$HOST" \
     --port "$PORT" \
     --log-level "${APP_LOG_LEVEL:-info}" \
-    $RELOAD_FLAG $WORKERS_FLAG
+    --timeout-keep-alive "${APP_KEEPALIVE:-75}" \
+    --backlog "${APP_BACKLOG:-2048}" \
+    --limit-concurrency "${APP_LIMIT_CONCURRENCY:-1000}" \
+    $LOOP_FLAG $HTTP_FLAG $ACCESS_LOG_FLAG $RELOAD_FLAG $WORKERS_FLAG
