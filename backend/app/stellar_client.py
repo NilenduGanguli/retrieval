@@ -226,11 +226,51 @@ def get_stellar() -> "StellarClient | object":
     """
     if settings.llm_provider.lower() == "vertex":
         from .vertex_client import get_vertex
-        return get_vertex()
-    global _stellar
-    if _stellar is None:
-        _stellar = StellarClient()
-    return _stellar
+        client: Any = get_vertex()
+    else:
+        global _stellar
+        if _stellar is None:
+            _stellar = StellarClient()
+        client = _stellar
+
+    # Embeddings are resolved independently of the LLM provider. The index is
+    # gte-large-en-v1.5 @1024 (the cross-service contract shared with
+    # document-enrichment-services), but a provider chosen for *generation* may embed with
+    # something else entirely — Vertex's text-embedding-005 is 768-D — and the mismatch
+    # only surfaces at query time as "different vector dimensions 1024 and 768". Whenever a
+    # fleet embedding endpoint is configured it wins for embed()/embed_one(), and the
+    # provider client is left to do chat.
+    from .embeddings import http_embeddings_enabled
+
+    if http_embeddings_enabled():
+        return _HttpEmbeddingClient(client)
+    return client
+
+
+class _HttpEmbeddingClient:
+    """Delegates everything to the provider client except embeddings.
+
+    Keeps the provider-agnostic surface intact (``embed``, ``embed_one``, ``chat``,
+    ``chat_stream``), so no pipeline module needs to know which combination is live.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    async def embed(self, texts: str | list[str]) -> list[list[float]]:
+        from .embeddings import embed_texts
+
+        items = [texts] if isinstance(texts, str) else list(texts)
+        return await embed_texts(items)
+
+    async def embed_one(self, text: str) -> list[float]:
+        from .embeddings import embed_one as _embed_one
+
+        return await _embed_one(text)
+
+    def __getattr__(self, name: str) -> Any:
+        # chat / chat_stream / everything else stays on the provider client.
+        return getattr(self._inner, name)
 
 
 def model_for(task: str) -> str:

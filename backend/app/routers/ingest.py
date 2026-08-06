@@ -6,6 +6,9 @@ Ingestion router.
                                    over already-ingested chunks (SSE progress)
   * POST /api/ingest/wega          run WEGA ingestion against an uploaded PDF
                                    (SSE log stream)
+  * POST /api/ingest/des           trigger a document-enrichment-services run
+                                   and follow it (SSE log stream)
+  * GET  /api/ingest/sources       which ingestion backends the UI may offer
 
 We avoid spawning the existing ingest.py as a separate OS process — instead
 we import its `ingest()` callable and run it in a thread so the existing
@@ -28,8 +31,10 @@ import httpx
 from fastapi import APIRouter, File, UploadFile
 from sse_starlette.sse import EventSourceResponse
 
+from .. import des_client
 from ..config import settings
 from ..db import acquire, healthcheck
+from ..des_client import DesError
 from ..pipeline.contextual import generate_context_batch
 from ..pipeline.local_ingest import ingest_document_local
 from ..s3_store import s3_put
@@ -400,3 +405,296 @@ async def wega_ingest(file: UploadFile = File(...)) -> EventSourceResponse:
                 task.cancel()
 
     return EventSourceResponse(_events())
+
+
+# ---------------------------------------------------------------------------
+# DES ingestion (document-enrichment-services) — trigger-and-follow proxy
+#
+# DES does Azure DI layout OCR → structure-aware chunking → gte embeddings and
+# writes its chunks DIRECTLY into the pgvector tables this service reads. So
+# this path never re-embeds or re-inserts anything: it POSTs the file to DES,
+# then polls the run until it terminates, translating DES's run/event model
+# into the SSE contract the Ingestion tab already speaks.
+#
+# The one thing that can silently break the whole integration is a schema
+# mismatch — DES writing into a schema retrieval does not read. GET
+# /api/ingest/sources surfaces that up-front (`schema_match`).
+# ---------------------------------------------------------------------------
+
+# DES's pipeline stages, in order. `run["stages"]` carries one key per stage
+# that has COMPLETED (value = elapsed ms), so progress is simply how many of
+# these seven are in.
+_DES_STAGES: tuple[str, ...] = (
+    "upload", "raster", "ocr", "chunk", "context", "embed", "persist",
+)
+
+
+def _des_progress(run: dict) -> tuple[float, str]:
+    """Derive (fraction, current-stage-label) from a DES run payload."""
+    stages = run.get("stages")
+    if not isinstance(stages, dict):
+        stages = {}
+    done_count = sum(1 for name in _DES_STAGES if stages.get(name) is not None)
+    total = len(_DES_STAGES)
+    fraction = min(max(done_count / total, 0.0), 1.0)
+
+    status = str(run.get("status") or "")
+    if status == "succeeded":
+        return 1.0, "done"
+    if done_count >= total:
+        current = "persist"
+    else:
+        current = _DES_STAGES[done_count]
+        if status == "queued" and done_count == 0:
+            current = "queued"
+    return fraction, current
+
+
+def _des_event_line(event: dict) -> str:
+    """Render one DES run-event as a single human-readable log line."""
+    stage = event.get("stage") or "?"
+    status = event.get("status") or ""
+    line = f"{stage} · {status}" if status else str(stage)
+    detail = event.get("detail")
+    if isinstance(detail, dict) and detail:
+        bits = [
+            f"{k}={v}"
+            for k, v in detail.items()
+            if not isinstance(v, (dict, list)) and v is not None
+        ]
+        if bits:
+            line += " (" + ", ".join(bits[:6]) + ")"
+    return line
+
+
+def _sse(event: str, payload: dict) -> dict:
+    return {"event": event, "data": json.dumps(payload)}
+
+
+def _des_error(message: str) -> dict:
+    # Both keys on purpose: the tab reads `message`, the contract names `error`.
+    return _sse("error", {"type": "error", "error": message, "message": message})
+
+
+async def _stream_des_ingest(saved: Path, filename: str):
+    """Trigger a DES ingestion for `saved` and stream its progress as SSE.
+
+    Emits the same event vocabulary as the WEGA paths — start / info /
+    progress / done / error — so the Ingestion tab needs no special-casing
+    beyond choosing this endpoint.
+
+    Every failure is surfaced as an SSE ``error`` event: an unhandled
+    exception here would close the stream with no explanation, which from the
+    browser is indistinguishable from a hung ingest. ``get_events`` failures
+    are the one exception — the event log is decoration, so a blip there is
+    logged as an ``info`` warning and polling continues; only the run itself
+    failing to answer ends the stream.
+    """
+    yield _sse("start", {"file": str(saved), "filename": filename, "mode": "des"})
+
+    try:
+        content_type = (
+            "application/pdf"
+            if Path(filename).suffix.lower() == ".pdf"
+            else "application/octet-stream"
+        )
+        try:
+            file_bytes = saved.read_bytes()
+        except OSError as exc:
+            yield _des_error(f"could not read the uploaded file: {exc}")
+            return
+
+        # ---- trigger -------------------------------------------------------
+        try:
+            submitted = await des_client.submit(file_bytes, filename, content_type)
+        except DesError as exc:
+            logger.warning("DES submit failed: %s", exc)
+            yield _des_error(str(exc))
+            return
+
+        run_id = submitted.get("run_id")
+        document_id = submitted.get("document_id")
+        document_name = submitted.get("name") or filename
+        if not run_id:
+            yield _des_error(
+                f"DES accepted the upload but returned no run_id: {submitted}"
+            )
+            return
+
+        yield _sse(
+            "info",
+            {
+                "type": "info",
+                "line": f"submitted to DES · document_id={document_id} run_id={run_id}",
+                "document_id": document_id,
+                "run_id": run_id,
+                "sha256": submitted.get("sha256"),
+                "s3_uri": submitted.get("s3_uri"),
+            },
+        )
+
+        # ---- follow --------------------------------------------------------
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + float(settings.des_timeout)
+        interval = max(0.05, float(settings.des_poll_interval))
+        last_seq = -1
+
+        while True:
+            if loop.time() > deadline:
+                yield _des_error(
+                    f"DES run {run_id} did not finish within des_timeout="
+                    f"{settings.des_timeout}s (it may still be running; "
+                    f"document_id={document_id})"
+                )
+                return
+
+            try:
+                run = await des_client.get_run(run_id)
+            except DesError as exc:
+                logger.warning("DES get_run failed: %s", exc)
+                yield _des_error(str(exc))
+                return
+
+            # New events only — DES returns the whole log every time, so we
+            # track the highest seq already emitted and never replay.
+            try:
+                events = await des_client.get_events(run_id)
+            except DesError as exc:
+                logger.warning("DES get_events failed: %s", exc)
+                events = []
+                yield _sse(
+                    "info",
+                    {"type": "info", "line": f"warning: event log unavailable ({exc})"},
+                )
+
+            for idx, event in enumerate(events):
+                try:
+                    seq = int(event.get("seq", idx))
+                except (TypeError, ValueError):
+                    seq = idx
+                if seq <= last_seq:
+                    continue
+                last_seq = seq
+                yield _sse(
+                    "info",
+                    {
+                        "type": "info",
+                        "line": _des_event_line(event),
+                        "seq": seq,
+                        "stage": event.get("stage"),
+                        "status": event.get("status"),
+                    },
+                )
+
+            fraction, stage = _des_progress(run)
+            chunk_count = run.get("chunk_count") or 0
+            yield _sse(
+                "progress",
+                {
+                    "type": "progress",
+                    "progress": fraction,
+                    "processed": chunk_count,
+                    "total": chunk_count,
+                    "failed": 0,
+                    "message": stage,
+                },
+            )
+
+            status = str(run.get("status") or "")
+            if status == "succeeded":
+                yield _sse(
+                    "done",
+                    {
+                        "type": "done",
+                        "processed": chunk_count,
+                        "total": chunk_count,
+                        "failed": 0,
+                        "document": run.get("document_name") or document_name,
+                        "document_id": run.get("document_id") or document_id,
+                        "run_id": run_id,
+                        "page_count": run.get("page_count"),
+                        "sha256": submitted.get("sha256"),
+                        "s3_uri": submitted.get("s3_uri"),
+                        "mode": "des",
+                    },
+                )
+                return
+            if status == "failed":
+                yield _des_error(
+                    run.get("error")
+                    or f"DES run {run_id} failed without an error message"
+                )
+                return
+
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:  # client hung up — let it propagate
+        raise
+    except Exception as exc:  # noqa: BLE001 - a silent stream close is worse
+        logger.exception("DES ingest stream failed")
+        yield _des_error(f"unexpected DES ingest failure: {exc}")
+
+
+async def _des_disabled_stream(filename: str):
+    """Well-formed SSE stream explaining that DES is switched off."""
+    yield _sse("start", {"file": filename, "filename": filename, "mode": "des"})
+    yield _des_error(
+        "DES ingestion is disabled — set DES_ENABLED=true (and DES_URL) on the backend"
+    )
+
+
+@router.post("/des")
+async def des_ingest(file: UploadFile = File(...)) -> EventSourceResponse:
+    """Ingest via document-enrichment-services (trigger + follow, no re-embed)."""
+    saved = await _save_upload(file)
+    filename = file.filename or saved.name
+    if not settings.des_enabled:
+        logger.info("DES ingest requested while des_enabled=False")
+        return EventSourceResponse(_des_disabled_stream(filename))
+    logger.info("DES ingest: %s -> %s", filename, settings.des_url)
+    return EventSourceResponse(_stream_des_ingest(saved, filename))
+
+
+@router.get("/sources")
+async def ingest_sources() -> dict:
+    """Which ingestion backends the Ingestion tab may offer, and their health.
+
+    `schema_match` is the field worth reading: DES writes its chunks directly
+    into a pgvector schema, and if that is not the schema this service queries,
+    the ingest "succeeds" while nothing it produced is ever retrievable here.
+    It is `null` when the DES build does not report its vector schema — that
+    means unknown, not fine.
+    """
+    des_available = False
+    des_schema_match: bool | None = None
+    des_vector_schema: str | None = None
+    des_error: str | None = None
+
+    if settings.des_enabled:
+        probe = await des_client.health()
+        des_available = bool(probe.get("ok"))
+        des_error = probe.get("error")
+        des_vector_schema = probe.get("vector_schema")
+        if des_vector_schema:
+            des_schema_match = des_vector_schema == settings.pg_schema
+
+    return {
+        "sources": [
+            {
+                "id": "wega",
+                "label": "WEGA / Stellar",
+                "available": True,
+                "detail": "remote" if settings.remote_ingest else "local",
+            },
+            {
+                "id": "des",
+                "label": "Document Enrichment Services",
+                "available": des_available,
+                "detail": settings.des_url,
+                "schema_match": des_schema_match,
+                "enabled": settings.des_enabled,
+                "vector_schema": des_vector_schema,
+                "expected_schema": settings.pg_schema,
+                "error": des_error,
+            },
+        ]
+    }

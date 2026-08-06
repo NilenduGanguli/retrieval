@@ -94,6 +94,30 @@ class Settings(BaseSettings):
     remote_ingest_secret: str = ""
     remote_ingest_timeout: int = 1800  # seconds; ingestion can be slow
 
+    # ---------- DES (document-enrichment-services) ingestion ----------
+    # A second, independent ingestion backend selectable from the Ingestion
+    # tab (POST /api/ingest/des). DES does Azure Document Intelligence layout
+    # OCR → structure-aware chunking → gte-large-en-v1.5 embeddings and writes
+    # its chunks DIRECTLY into the same pgvector tables this service reads
+    # (documents / chunk_embeddings / chunk_context). retrieval never
+    # re-embeds anything on this path: it triggers the DES run and follows it.
+    #
+    # THE ONE SETTING THAT MATTERS: `pg_schema` below and DES's
+    # `PG_VECTOR_SCHEMA` must name the SAME schema. DES writing into
+    # "vector" while retrieval reads "vector_ng12499" is a silent failure —
+    # ingestion reports success, the rows exist, and no query here ever sees
+    # them. GET /api/ingest/sources reports `schema_match` for exactly this,
+    # whenever DES exposes its vector schema on /api/readyz.
+    #
+    # The embedding model + dimension are the other half of the contract
+    # (see `embedding_model` above): both services must be on
+    # gte-large-en-v1.5 @ 1024-D or the vectors cannot share a column.
+    des_enabled: bool = False
+    des_url: str = "http://localhost:8100"
+    des_api_key: str = ""            # sent as X-API-Key; blank = DES has no API_KEY set
+    des_timeout: int = 1800          # seconds; ingestion can be slow
+    des_poll_interval: float = 1.0   # seconds between run/event polls
+
     # ---------- Object storage (uploaded source PDFs) ----------
     s3_enabled: bool = True
     s3_endpoint_url: str = "http://localhost:9000"       # MinIO locally; blank = AWS

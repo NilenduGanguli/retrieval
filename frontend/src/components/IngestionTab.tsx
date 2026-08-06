@@ -9,6 +9,12 @@ import { api, postSse, uploadSse } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { DocumentSummary, HealthInfo } from '@/types'
 
+import {
+  IngestSourcePicker,
+  ingestEndpoint,
+  sourceLabel,
+  useIngestSources,
+} from './IngestSourceSelector'
 import TokenBadge from './TokenBadge'
 
 type Props = { health: HealthInfo | null; onChange: () => void }
@@ -32,6 +38,12 @@ type UploadSession = {
   documentName: string
   documentId: string | null
   sha256: string | null
+  // Which backend performed this ingestion. `source`/`sourceLabel` are what the
+  // user picked; `mode` is what the backend reported on the `start` event
+  // (wega-stellar / remote / local-vertex / des …) and wins when present.
+  source: string
+  sourceLabel: string
+  mode: string | null
   startedAt: number
   finishedAt: number | null
   events: SessionEvent[]
@@ -85,6 +97,16 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'upload'
 }
 
+// Compact tag for the source that produced a session — keeps a mixed
+// wega/des history readable in the pills and the panel header.
+function modeTag(s: { mode: string | null; source: string }): string {
+  const m = (s.mode || s.source || '').toLowerCase()
+  if (!m) return 'wega'
+  if (m === 'wega-stellar') return 'wega'
+  if (m === 'local-vertex') return 'vertex'
+  return m
+}
+
 export default function IngestionTab({ health, onChange }: Props) {
   const [docs, setDocs] = useState<DocumentSummary[] | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -103,6 +125,11 @@ export default function IngestionTab({ health, onChange }: Props) {
   const [ctxLimit, setCtxLimit] = useState(100)
   const fileRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
+  // Which backend performs the ingestion. Only changes the POST target — the
+  // SSE contract (and therefore everything below) is identical for both.
+  const ingestSources = useIngestSources()
+  const sourceIdRef = useRef(ingestSources.sourceId)
+  useEffect(() => { sourceIdRef.current = ingestSources.sourceId }, [ingestSources.sourceId])
   const ctxPanelRef = useRef<HTMLDivElement>(null)
   const [ctxHighlight, setCtxHighlight] = useState(false)
 
@@ -111,7 +138,7 @@ export default function IngestionTab({ health, onChange }: Props) {
   const [activeSessionKey, setActiveSessionKey] = useState<string | null>(null)
   const currentSessionRef = useRef<string | null>(null)
 
-  function startSession(documentName: string): string {
+  function startSession(documentName: string, source: string, label: string): string {
     const key = makeSessionKey()
     currentSessionRef.current = key
     setActiveSessionKey(key)
@@ -121,6 +148,9 @@ export default function IngestionTab({ health, onChange }: Props) {
         documentName,
         documentId: null,
         sha256: null,
+        source,
+        sourceLabel: label,
+        mode: null,
         startedAt: Date.now(),
         finishedAt: null,
         events: [],
@@ -193,30 +223,45 @@ export default function IngestionTab({ health, onChange }: Props) {
     return () => window.removeEventListener('rag:focus-contextual', handler)
   }, [])
 
-  function uploadPdf(file: File, onComplete?: () => void) {
+  function uploadPdf(file: File, source: string, onComplete?: () => void) {
     setUploadProgress(0)
     setUploadStage('uploading')
     setUploadCounts(null)
     setUploadTokens(null)
     setCurrentFile(file.name)
-    const sessionKey = startSession(file.name)
+    const label = sourceLabel(ingestSources.sources, source)
+    const sessionKey = startSession(file.name, source, label)
     const form = new FormData()
     form.append('file', file)
     abortRef.current?.()
     abortRef.current = uploadSse(
-      '/api/ingest/wega',
+      // wega → /api/ingest/wega, des → /api/ingest/des. Same event contract.
+      ingestEndpoint(source),
       form,
       (evt, raw) => {
         try {
           const data = JSON.parse(raw)
           recordEvent(sessionKey, evt, data)
           if (evt === 'start') {
-            const mode = data.mode || 'wega-stellar'
+            // `mode` is the backend's own name for the path it took
+            // (wega-stellar / remote / local-vertex / des …). Fall back to the
+            // source the user picked so a session is never unlabelled.
+            const mode = data.mode || source
             setUploadStage('reading')
+            updateSession(sessionKey, s => ({ ...s, mode }))
             setUploadLog(l => [...l, { type: 'info', text: `${mode} · ${data.filename || data.file}`, at: Date.now() }])
           }
-          else if (evt === 'log') {
-            const line = data.line || raw
+          else if (
+            evt === 'log' ||
+            (evt === 'info' && (typeof data.line === 'string' || typeof data.message === 'string'))
+          ) {
+            // One log line per event. The in-process WEGA path names the event
+            // `log`; the remote/DES paths name it `info` — same payload shape,
+            // same stage inference, one handler.
+            const line: string =
+              (typeof data.line === 'string' ? data.line : null) ??
+              (typeof data.message === 'string' ? data.message : null) ??
+              raw
             if (line.startsWith('reading')) setUploadStage('reading')
             else if (line.startsWith('extracted')) setUploadStage('extracted')
             else if (line.startsWith('created')) setUploadStage('chunking')
@@ -318,8 +363,10 @@ export default function IngestionTab({ health, onChange }: Props) {
     if (queue.length === 0) return
     const [next, ...rest] = queue
     setQueue(rest)
-    setUploadLog(l => [...l, { type: 'info', text: `─── ${next.name} (${(next.size/1024).toFixed(1)} KB) ───`, at: Date.now() }])
-    uploadPdf(next, () => setCurrentFile(null))
+    // Each file uses whichever source is selected when its turn comes up.
+    const source = sourceIdRef.current
+    setUploadLog(l => [...l, { type: 'info', text: `─── ${next.name} (${(next.size/1024).toFixed(1)} KB) → ${source} ───`, at: Date.now() }])
+    uploadPdf(next, source, () => setCurrentFile(null))
   }, [queue, currentFile])
 
   // `ident` is either a document_id (UUID) — preferred — or a legacy document_name.
@@ -413,16 +460,27 @@ export default function IngestionTab({ health, onChange }: Props) {
           <Stat label="Embedding dim" value={health?.embedding_dim ?? '—'} />
         </div>
 
-        {/* WEGA ingest */}
+        {/* Ingest — WEGA / Stellar or Document Enrichment Services */}
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-3">
             <FileUp className="w-4 h-4 text-accent" />
-            <h2 className="font-medium text-sm">Ingest PDF (WEGA chunker)</h2>
+            <h2 className="font-medium text-sm">Ingest PDF</h2>
           </div>
           <p className="text-xs text-citi-blue mb-3">
-            Uploads the PDF to the server and runs your existing <code className="text-accent-dark">ingest.py</code>
-            {' '}in-process. Stream of WEGA chunking → embedding → pgvector upsert.
+            {ingestSources.sourceId === 'des' ? (
+              <>
+                Hands the PDF to <code className="text-accent-dark">document-enrichment-services</code>, which runs
+                Azure DI layout OCR → structure-aware chunking → gte-large embeddings and writes the chunks straight
+                into the same pgvector tables. Its progress is streamed back here.
+              </>
+            ) : (
+              <>
+                Uploads the PDF to the server and runs your existing <code className="text-accent-dark">ingest.py</code>
+                {' '}in-process. Stream of WEGA chunking → embedding → pgvector upsert.
+              </>
+            )}
           </p>
+          <IngestSourcePicker state={ingestSources} className="mb-3" />
           <div className="flex items-center gap-2">
             <input
               ref={fileRef}
@@ -831,6 +889,8 @@ function UploadSessionPanel({
         document_name: active.documentName,
         document_id: active.documentId,
         sha256: active.sha256,
+        ingest_source: active.source,
+        mode: active.mode,
         chunker_result: active.chunkerResult,
       }
     }
@@ -838,6 +898,8 @@ function UploadSessionPanel({
       document_name: active.documentName,
       document_id: active.documentId,
       sha256: active.sha256,
+      ingest_source: active.source,
+      mode: active.mode,
       started_at: new Date(active.startedAt).toISOString(),
       finished_at: active.finishedAt ? new Date(active.finishedAt).toISOString() : null,
       error: active.error,
@@ -865,6 +927,12 @@ function UploadSessionPanel({
       <div className="flex items-center gap-2 flex-wrap">
         <History className="w-4 h-4 text-accent" />
         <h2 className="font-medium text-sm">Recent Upload Session</h2>
+        <span
+          className="chip text-[10px]"
+          title={`Ingested via ${active.sourceLabel}${active.mode ? ` (mode: ${active.mode})` : ''}`}
+        >
+          {modeTag(active)}
+        </span>
         {isRunning && (
           <span className="chip-accent text-[10px] inline-flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" />
@@ -899,8 +967,11 @@ function UploadSessionPanel({
                     ? 'border-accent bg-accent text-white shadow-glow'
                     : 'border-line bg-bg-soft text-citi-blue hover:border-accent/60',
                 )}
-                title={`${s.documentName} · ${new Date(s.startedAt).toLocaleTimeString()}`}
+                title={`${s.documentName} · ${s.sourceLabel} · ${new Date(s.startedAt).toLocaleTimeString()}`}
               >
+                <span className={cn('opacity-75 mr-1', !isActive && 'text-accent-dark')}>
+                  {modeTag(s)}
+                </span>
                 {s.documentName}
               </button>
             )
@@ -945,6 +1016,10 @@ function UploadSessionPanel({
             </span>
           )}
           <span className="tabular-nums">{processed} chunks</span>
+          <span>·</span>
+          <span title={`Ingestion source: ${active.sourceLabel}${active.mode ? ` (mode: ${active.mode})` : ''}`}>
+            via {active.sourceLabel}
+          </span>
           <span>·</span>
           <span title={new Date(active.startedAt).toLocaleString()}>
             {new Date(active.startedAt).toLocaleTimeString()}
